@@ -1,5 +1,6 @@
 #include <string>
 #include <iostream>
+#include "linenoise.hpp"
 
 using std::string;
 using std::getline;
@@ -25,18 +26,23 @@ string Rep(string input) {
 }
 
 void loop() {
-    while(true) {
-        cout << "user> ";
-        string input = "";
-        // handle ctrl+d closing of stream
-        if (!getline(cin, input))
-            break;
-        if (input == ".q")
+    string historyPath = "./mem.txt";
+    linenoise::LoadHistory(historyPath.c_str());
+
+    string input = "";
+
+    while(true) {   
+        bool quit = linenoise::Readline("user> ", input);
+        if (quit || input == ".q")
             break;
         if (input == "")
             continue;
+
         cout << Rep(input) << endl;
+        linenoise::AddHistory(input.c_str());
     }
+
+    linenoise::SaveHistory(historyPath.c_str());
 }
 
 int main() {
