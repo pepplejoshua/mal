@@ -22,3 +22,5 @@ GRTAGS
 logs
 old
 tmp/
+.vscode/settings.json
+impls/cpp/step0_repl.dSYM/Contents/Info.plist
