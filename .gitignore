@@ -25,3 +25,5 @@ tmp/
 .vscode/settings.json
 impls/cpp/step0_repl.dSYM/Contents/Info.plist
 impls/cpp/mem.txt
+.vscode/c_cpp_properties.json
+impls/cpp/.vscode/settings.json
