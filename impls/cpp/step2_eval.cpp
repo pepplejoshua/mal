@@ -161,7 +161,9 @@ MalType* add(MalType** args, size_t argc) {
         return new MalInt(sum);
     } else if (typeCheck(l->type(), String)) {
         string concat = "";
-        concat += l->as_string()->str() + r->as_string()->str();
+        auto lhs = l->as_string()->content();
+        auto rhs = r->as_string()->content();
+        concat +=  "\"" + lhs + rhs + "\""; 
         return new MalString(concat);
     } else {
         auto typeExcep = TypeException();

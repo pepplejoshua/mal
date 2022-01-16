@@ -228,12 +228,12 @@ public:
         return String;
     }   
 
-    string str() {
-        return s_str;
+    string content() {
+        return s_str.substr(1, s_str.size()-2);
     }
 
     string inspect() {
-        return str();
+        return s_str;
     }
 
 private:
