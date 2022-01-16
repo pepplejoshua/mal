@@ -16,6 +16,10 @@ using std::vector;
 using std::cout;
 using std::cerr;
 
+auto NIL = new MalNil();
+auto TRUE = new MalBoolean(true);
+auto FALSE = new MalBoolean(false);
+
 vector < string_view > tokenize(string &input) {
     Tokenizer tokenizer(input);
     vector < string_view > tokens;
@@ -71,6 +75,7 @@ optional < MalType* > read_list(Reader &reader) {
         if (token.value() == ")") {
             // skip )
             reader.next();
+            // can decide to return nil if list is empty
             return list;
         }
 
@@ -147,15 +152,38 @@ optional < MalType* > read_hashmap(Reader &reader) {
     throw r_except;
 }
 
+bool isNilToken(string_view token) {
+    return token == "nil";
+}
+
+bool isBooleanToken(string_view token) {
+    if (token == "true" || token == "false")
+        return true;
+    return false;
+}
 
 optional < MalType* > read_atom(Reader &reader) {
     auto token = *reader.peek();
 
-    // a string
-    if (token[0] == '"') {
-        return read_string(reader);
+    char firstChar = token[0];
+
+    switch (firstChar) {
+        case '"': {
+            return read_string(reader);
+        }
+        default: {
+            if (isNilToken(token)) {
+                reader.next();
+                return NIL;
+            }
+
+            if (isBooleanToken(token)) {
+                reader.next();
+                return token == "true" ? TRUE : FALSE;
+            }
+            return new MalSymbol(*reader.next());
+        }
     }
-    return new MalSymbol(*reader.next());
 }
 
 optional < MalString* > read_string(Reader &reader) {
@@ -192,8 +220,6 @@ optional < MalString* > read_string(Reader &reader) {
                     throw r_except;
                 }
                 char next = stringContent[i];
-                // cout << "prev -> " << c << endl;
-                // cout << "next -> " << next << endl;
                 switch (next) {
                     case 'n':
                         finalStr += "\\n";

@@ -154,32 +154,38 @@ public:
     }
 
     string inspect() {
-        // string content = str();
         return str();
-        // return "'" + content + "'";
-    //     std::string str = "\"";
-    //     for (char c : s_str) {
-    //         switch (c) {
-    //         case '"':
-    //             str += '\\';
-    //             str += c;
-    //             break;
-    //         case '\\':
-    //             str += '\\';
-    //             // str += '\\';
-    //             break;
-    //         case '\n':
-    //             str += '\\';
-    //             str += 'n';
-    //             break;
-    //         default:
-    //             str += c;
-    //         }
-    //     }
-    //     str += "\"";
-    //     return str;
     }
 
 private:
     string s_str;
+};
+
+class MalNil : public MalType {
+public:
+    MalNil() { }
+
+    string typeID() {
+        return "nil";
+    }
+
+    string inspect() {
+        return "nil";
+    }
+};
+
+class MalBoolean : public MalType {
+public:
+    MalBoolean(bool val) : value {val} { }
+
+    string typeID() {
+        return "boolean";
+    }
+
+    string inspect() {
+        return value ? "true" : "false";
+    }
+
+private:
+    bool value;
 };
