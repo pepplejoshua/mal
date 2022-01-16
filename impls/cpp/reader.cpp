@@ -158,7 +158,7 @@ bool isBooleanToken(string_view token) {
     return false;
 }
 
-bool tokenStartsWithNumberOrMinus(string_view token) {
+bool isNumberToken(string_view token) {
     // isdigit returns 0 when i is not a digit
     // or is a negative number
     if (isdigit(token[0]) || (token[0] == '-' && token.size() > 1))
@@ -185,7 +185,7 @@ optional < MalType* > read_atom(Reader &reader) {
             } else if (isBooleanToken(token)) {
                 reader.next();
                 return token == "true" ? glob.at("true") : glob.at("false");
-            } else if (tokenStartsWithNumberOrMinus(token)) {
+            } else if (isNumberToken(token)) {
                 reader.next();
                 // cast token to long from a string and then make a MalInt with it
                 long num = 0;
@@ -204,7 +204,8 @@ optional < MalType* > read_atom(Reader &reader) {
                     auto n_excep = ReaderException();
                     n_excep.errMessage = "number token contains invalid characters!";
                     throw n_excep;
-                } else if (errCode == errc::invalid_argument) { // means tokenStartsWithNumber() failed, not probable
+                } else if (errCode == errc::invalid_argument) { 
+                    // means isNumberToken() failed
                     auto n_excep = ReaderException();
                     n_excep.errMessage = "invalid number!";
                     throw n_excep;

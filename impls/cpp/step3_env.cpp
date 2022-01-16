@@ -13,7 +13,10 @@ using std::cout;
 using std::cin;
 using std::endl;
 
-Env global;
+// used to cache nil, true and false to be reused by reader
+Env CONSTANTS;
+// used as the global environment
+Environ* TOP_LEVEL = new Environ(NULL);
 auto NIL = new MalNil();
 auto TRUE = new MalBoolean(true);
 auto FALSE = new MalBoolean(false);
@@ -35,40 +38,38 @@ MalType* or_(MalType** args, size_t argc);
 MalType* and_(MalType** args, size_t argc);
 
 MalType* READ(string input) {
-    return *read_str(input, global);
+    return *read_str(input, CONSTANTS);
 }
 
-MalType* EVAL(MalType*);
-MalType* eval_ast(MalType* ast) {
+MalType* EVAL(MalType*, Environ* curEnv);
+MalType* eval_ast(MalType* ast, Environ* curEnv) {
     switch (ast->type()) {
         case Symbol: {
-            auto symstr = ast->as_symbol()->str();
-            auto search = global.find(symstr);
-            if (search == global.end()) {
-                auto runExcep = RuntimeException();
-                runExcep.errMessage = "reference to unbound variable '" + symstr + "'.";
-                throw runExcep;
-            }
-            return search->second;
+            auto symbol = ast->as_symbol();
+            return curEnv->get(symbol);
+        }
+        case Keyword: {
+            auto symbol = ast->as_keyword();
+            return curEnv->get(symbol);
         }
         case List: {
             auto results = new MalList();
             for (MalType* i : ast->as_list()->items()) {
-                results->append(EVAL(i));
+                results->append(EVAL(i, curEnv));
             }
             return results;
         }
         case Vector: {
             auto results = new MalVector();
             for (MalType* i : ast->as_vector()->items()) {
-                results->append(EVAL(i));
+                results->append(EVAL(i, curEnv));
             }
             return results;
         }
         case HashMap: {
             auto hmap = new MalHashMap();
             for (auto pair : ast->as_hashmap()->items()) {
-                hmap->set(pair.first, EVAL(pair.second));
+                hmap->set(pair.first, EVAL(pair.second, curEnv));
             }
             return hmap;
         }
@@ -78,23 +79,91 @@ MalType* eval_ast(MalType* ast) {
     return ast;
 }
 
-MalType* EVAL(MalType* ast) {
+MalType* eval_let(vector < MalType* >, MalType*, Environ*);
+MalType* EVAL(MalType* ast, Environ* curEnv) {
     // not a list, call eval_ast and return its result
     if (ast->type() != List) {
-        return eval_ast(ast);
+        return eval_ast(ast, curEnv);
     } else if (ast->type() == List && ast->as_list()->items().empty()) {
         // empty list
         return ast;
-    } else {
+    } else { // a non-empty list
+        // take the first item and check if it is a symbol
+        auto rawlist = ast->as_list()->items();
+        auto firstItem = rawlist[0];
+        if(firstItem->type() == Symbol) {
+            // if it is a Symbol, is it def! or let*?
+            auto symstr = firstItem->as_symbol()->str();
+            // if it is a def!
+            if (symstr == "def!") {
+                // make sure we have 3 parameters
+                if (rawlist.size() != 3) {
+                    auto runExcep = RuntimeException();
+                    runExcep.errMessage = "def! form requires 2 arguments (symbol and its value).";
+                    throw runExcep;
+                }
+                auto key = rawlist[1];
+                auto val = rawlist[2];
+                auto e_val = EVAL(val, curEnv);
+                curEnv->set(key, e_val);
+                return e_val;
+            } else if (symstr == "let*") {
+                // make sure it has 3 parameters
+                if (rawlist.size() != 3) {
+                    auto runExcep = RuntimeException();
+                    runExcep.errMessage = "let* form requires 2 arguments (bindings and a body).";
+                    throw runExcep;
+                }
+                // get bindings and let* body
+                auto bindings = rawlist[1];
+                auto body = rawlist[2];
+                // create let* env
+                auto letEnv = new Environ(curEnv);
+                // make sure bindings are in a list
+                if (bindings->type() == List) {
+                    auto list = bindings->as_list()->items();
+                    return eval_let(list, body, letEnv);
+                } else if (bindings->type() == Vector) {
+                    auto vec = bindings->as_vector()->items();
+                    return eval_let(vec, body, letEnv);
+                } else {
+                    auto runExcep = RuntimeException();
+                    runExcep.errMessage = "let* form requires 2nd arguments to be a sequence of bindings.";
+                    throw runExcep;
+                }
+
+            }
+            // if it is neither, it will full through to the bottom
+            // and be a function call
+        }
+        
         // evaluate with eval_ast, and get new list
         // then call list[0] as a function with 
         // rest of list as it's argument
-        auto list = eval_ast(ast)->as_list()->items();
+        auto list = eval_ast(ast, curEnv)->as_list()->items();
         auto fn = list[0]->as_func();
         auto args = list.data() + 1; // start after fn item
         auto argc = list.size() - 1; // count args - fn item
         return fn->callable()(args, argc);
     }
+}
+
+MalType* eval_let(vector < MalType* > bindables, MalType* body, Environ* letEnv) {
+    // make sure list has even number of elements
+    if (bindables.size() % 2 != 0) {
+        auto runExcep = RuntimeException();
+        runExcep.errMessage = "unbalanced binding list (not an even number of elements).";
+        throw runExcep;    
+    }
+
+    // bind each key in list to its value in let* env
+    for (int i = 0; bindables.size() > i; i += 2) {
+        auto key = bindables[i];
+        auto val = bindables[i+1];
+        letEnv->set(key, EVAL(val, letEnv));
+    }
+
+    return EVAL(body, letEnv);
 }
  
 string PRINT(MalType* input) {
@@ -102,7 +171,7 @@ string PRINT(MalType* input) {
 }
 
 string Rep(string input) {
-    return PRINT(EVAL(READ(input)));
+    return PRINT(EVAL(READ(input), TOP_LEVEL));
 }
 
 void loop() {
@@ -110,15 +179,16 @@ void loop() {
     linenoise::LoadHistory(historyPath.c_str());
 
     string input = "";
-    global["nil"] = NIL;
-    global["true"] = TRUE;
-    global["false"] = FALSE;
-    global["+"] = new MalFunc(add, "+");
-    global["-"] = new MalFunc(sub, "-");
-    global["*"] = new MalFunc(mult, "*");
-    global["/"] = new MalFunc(div, "/");
-    global["or"] = new MalFunc(or_, "or");
-    global["and"] = new MalFunc(and_, "and");
+    CONSTANTS["nil"] = NIL;
+    CONSTANTS["true"] = TRUE;
+    CONSTANTS["false"] = FALSE;
+
+    TOP_LEVEL->set(new MalSymbol("+"), new MalFunc(add, "+"));
+    TOP_LEVEL->set(new MalSymbol("-"), new MalFunc(sub, "-"));
+    TOP_LEVEL->set(new MalSymbol("*"), new MalFunc(mult, "*"));
+    TOP_LEVEL->set(new MalSymbol("/"), new MalFunc(div, "/"));
+    TOP_LEVEL->set(new MalSymbol("or"), new MalFunc(or_, "or"));
+    TOP_LEVEL->set(new MalSymbol("and"), new MalFunc(and_, "and"));
 
     while(true) {   
         bool quit = linenoise::Readline("user> ", input);

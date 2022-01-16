@@ -261,6 +261,10 @@ public:
         return Boolean;
     }
 
+    bool val() {
+        return value;
+    }
+
     string inspect() {
         return value ? "true" : "false";
     }

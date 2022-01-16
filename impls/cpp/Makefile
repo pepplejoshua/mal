@@ -3,7 +3,10 @@
 # CXXFLAGS ?= -g -Wall -Werror -Wextra
 CXXFLAGS ?= -std=c++20
 
-build: step2_eval
+build: step3_env
+
+step3_env: step3_env.cpp reader.cpp printer.cpp mal_types.cpp
+	clang++ $(CXXFLAGS) -o $@ $^
 
 step2_eval: step2_eval.cpp reader.cpp printer.cpp mal_types.cpp
 	clang++ $(CXXFLAGS) -o $@ $^
@@ -20,4 +23,4 @@ step0_repl: step0_repl.cpp
 	clang++ $(CXXFLAGS) -o step0_repl step0_repl.cpp
 
 clean:
-	rm -rf step2_eval
+	rm -rf step3_env
