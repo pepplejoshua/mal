@@ -128,7 +128,7 @@ optional < MalType* > read_hashmap(Reader &reader) {
     if (lbracket != "{") {
         // throw reader exception
         auto r_except = ReaderException();
-        r_except.errMessage = "incorrect formation of hashmap";
+        r_except.errMessage = "a hashmap comes after ^ (for metadata)";
         throw r_except;
     }
 
@@ -199,7 +199,7 @@ optional < MalType* > read_keyword(Reader &reader) {
     return new MalKeyword(reader.next().value());
 }
 
-optional < MalString* > read_string(Reader &reader) {
+optional < MalType* > read_string(Reader &reader) {
     auto token = reader.next().value();
 
     if (token.length() < 2) {

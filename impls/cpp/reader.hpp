@@ -246,7 +246,7 @@ optional < MalType* > read_atom(Reader &reader);
 
 optional < MalType* > read_keyword(Reader &reader);
 
-optional < MalString* > read_string(Reader &reader);
+optional < MalType* > read_string(Reader &reader);
 
 optional < MalType* > read_metadata_w_object(Reader &reader);
 

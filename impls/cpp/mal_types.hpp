@@ -205,3 +205,23 @@ public:
 private:
     bool value;
 };
+
+class MalInt : public MalType {
+public:
+    MalInt(long val) : value {val} { }
+
+    string typeID() {
+        return "int";
+    }
+
+    long to_long() {
+        return value;
+    }
+
+    string inspect() {
+        return to_string(value);
+    }
+
+private:
+    long value;
+};
