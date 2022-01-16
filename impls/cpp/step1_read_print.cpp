@@ -48,6 +48,9 @@ void loop() {
             cerr << e.what() << endl;
             linenoise::AddHistory(input.c_str());
             continue;
+        } catch (CommentException &c) {
+            linenoise::AddHistory(input.c_str());
+            continue;
         }
         linenoise::AddHistory(input.c_str());
     }

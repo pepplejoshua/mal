@@ -20,6 +20,8 @@ auto NIL = new MalNil();
 auto TRUE = new MalBoolean(true);
 auto FALSE = new MalBoolean(false);
 
+auto comment = CommentException();
+
 vector < string_view > tokenize(string &input) {
     Tokenizer tokenizer(input);
     vector < string_view > tokens;
@@ -60,6 +62,8 @@ optional < MalType* > read_form(Reader &reader) {
             return read_dereferenced_val(reader);
         case '^': // attached meta data dictionary to a MalTypea
             return read_metadata_w_object(reader);
+        case ';': // comments
+            throw comment;
         default:
             return read_atom(reader);
     }
@@ -171,6 +175,9 @@ optional < MalType* > read_atom(Reader &reader) {
         case '"': {
             return read_string(reader);
         }
+        case ':': {
+            return read_keyword(reader);
+        }
         default: {
             if (isNilToken(token)) {
                 reader.next();
@@ -184,6 +191,12 @@ optional < MalType* > read_atom(Reader &reader) {
             return new MalSymbol(*reader.next());
         }
     }
+}
+
+optional < MalType* > read_keyword(Reader &reader) {
+    // skip over :
+    reader.next().value();
+    return new MalKeyword(reader.next().value());
 }
 
 optional < MalString* > read_string(Reader &reader) {

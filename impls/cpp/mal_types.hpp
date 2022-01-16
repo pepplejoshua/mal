@@ -141,6 +141,22 @@ private:
     string s_str;
 };
 
+class MalKeyword : public MalType {
+public:
+    MalKeyword(string_view str): k_str {str} { }
+
+    string typeID() {
+        return "keyword";
+    }
+
+    string inspect() {
+        return ":" + k_str;
+    }
+
+private:
+    string k_str;
+};
+
 class MalString : public MalType {
 public:
     MalString(string_view str): s_str {str} { }

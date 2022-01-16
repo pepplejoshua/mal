@@ -26,6 +26,8 @@ public:
     string errMessage;
 };
 
+class CommentException : exception { };
+
 class Tokenizer {
 public:
     // we use a reference because we expect input to outlive Tokenizer
@@ -68,6 +70,7 @@ public:
                 case '\'':
                 case '`':
                 case '@':
+                case ':':
                 case '^': {
                     // step over it
                     advanceIndexBy(1);
@@ -240,6 +243,8 @@ optional < MalType* > read_vector(Reader &reader);
 optional < MalType* > read_hashmap(Reader &reader);
 
 optional < MalType* > read_atom(Reader &reader);
+
+optional < MalType* > read_keyword(Reader &reader);
 
 optional < MalString* > read_string(Reader &reader);
 
