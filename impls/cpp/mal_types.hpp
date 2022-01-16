@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <string_view>
+#include <map>
 
 using namespace std;
 
@@ -44,6 +45,82 @@ private:
     vector < MalType* > l_items;
 };
 
+class MalVector : public MalType{
+public:
+    MalVector() { }
+    string typeID() {
+        return "vector";
+    }
+
+    // add new item to list
+    void append(MalType* item) {
+        v_items.push_back(item);
+    }
+
+    string inspect() {
+        string out = "[";
+        for (auto item : v_items) {
+            out += item->inspect() + " ";
+        }
+        // overwrite the last append space 
+        // only if we have list items
+        if (out.length() > 1) {
+            out[out.length()-1] = ']';
+        }
+        else
+            out += ']';
+
+        return out;
+    }
+
+private:
+    vector < MalType* > v_items;
+};
+
+class MalHashMap : public MalType {
+public:
+    MalHashMap() {}
+
+    string typeID() {
+        return "hashmap";
+    }
+
+    void set(MalType* key, MalType* val) {
+        hmap[key] = val;
+    }
+
+    MalType* get(MalType* key) {
+        auto search = hmap.find(key);
+
+        if (search != hmap.end()) {
+            return search->second;
+        }
+
+        return nullptr;
+    }
+
+    string inspect() {
+        string out = "{";
+        for (auto item : hmap) {
+            out += item.first->inspect() + " ";
+            out += item.second->inspect() + " ";
+        }
+        // overwrite the last append space 
+        // only if we have list items
+        if (out.length() > 1) {
+            out[out.length()-1] = '}';
+        }
+        else
+            out += '}';
+
+        return out;
+    }
+
+private:
+    map < MalType*, MalType* > hmap;
+};
+
+
 class MalSymbol : public MalType {
 public:
     MalSymbol(string_view str): s_str {str} { }
@@ -58,6 +135,49 @@ public:
 
     string inspect() {
         return str();
+    }
+
+private:
+    string s_str;
+};
+
+class MalString : public MalType {
+public:
+    MalString(string_view str): s_str {str} { }
+
+    string typeID() {
+        return "string";
+    }
+
+    string str() {
+        return s_str;
+    }
+
+    string inspect() {
+        // string content = str();
+        return str();
+        // return "'" + content + "'";
+    //     std::string str = "\"";
+    //     for (char c : s_str) {
+    //         switch (c) {
+    //         case '"':
+    //             str += '\\';
+    //             str += c;
+    //             break;
+    //         case '\\':
+    //             str += '\\';
+    //             // str += '\\';
+    //             break;
+    //         case '\n':
+    //             str += '\\';
+    //             str += 'n';
+    //             break;
+    //         default:
+    //             str += c;
+    //         }
+    //     }
+    //     str += "\"";
+    //     return str;
     }
 
 private:

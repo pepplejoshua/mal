@@ -82,8 +82,11 @@ public:
                         char cToken = currentCharacter();
                         switch (cToken) {
                             // termination of string
-                            case '"':
-                                return s_view.substr(stringStart, t_input_index - stringStart + 1);
+                            case '"': {
+                                // skip terminating "
+                                advanceIndexBy(1);
+                                return s_view.substr(stringStart, t_input_index - stringStart);
+                            }
                             // possible escape of a character (eg: ")
                             case '\\': {
                                 // skip \ and next character
@@ -91,10 +94,6 @@ public:
                                 // external advanceIndexBy will move it by 1 again, so this is fine
                                 break;
                             }
-                            default: {
-                                // do nothing
-                            }
-
                         }
                         advanceIndexBy(1);
                     }
@@ -111,6 +110,7 @@ public:
                         advanceIndexBy(1);
                     }
                     return s_view.substr(commentStart, t_input_index - commentStart);
+                    break;
                 }
                 // handles everything else:
                 /*
@@ -235,4 +235,12 @@ optional < MalType* > read_form(Reader &reader);
 
 optional < MalType* > read_list(Reader &reader);
 
+optional < MalType* > read_vector(Reader &reader);
+
+optional < MalType* > read_hashmap(Reader &reader);
+
 optional < MalType* > read_atom(Reader &reader);
+
+optional < MalString* > read_string(Reader &reader);
+
+optional < MalString* > read_quoted_val(Reader &reader);
