@@ -4,6 +4,7 @@
 #include <exception>
 #include <vector>
 #include <optional>
+#include <charconv>
 #include "mal_types.hpp"
 #include "reader.hpp"
 
@@ -166,6 +167,13 @@ bool isBooleanToken(string_view token) {
     return false;
 }
 
+bool tokenStartsWithNumber(string_view token) {
+    // isdigit returns 0 when i is not a digit
+    if (isdigit(token[0]))
+        return true;
+    return false;
+}
+
 optional < MalType* > read_atom(Reader &reader) {
     auto token = *reader.peek();
 
@@ -182,13 +190,43 @@ optional < MalType* > read_atom(Reader &reader) {
             if (isNilToken(token)) {
                 reader.next();
                 return NIL;
-            }
-
-            if (isBooleanToken(token)) {
+            } else if (isBooleanToken(token)) {
                 reader.next();
                 return token == "true" ? TRUE : FALSE;
-            }
-            return new MalSymbol(*reader.next());
+            } else if (tokenStartsWithNumber(token)) {
+                reader.next();
+                // cast token to long from a string and then make a MalInt with it
+                long num = 0;
+                // returns a from_chars_result struct which gets 
+                // destructured into ptr for rest of non-number string
+                // and errCode for any errors 
+                auto tokenEnd = token.data() + token.size();
+                auto [rest, errCode] { from_chars(token.data(), tokenEnd, num) };
+                
+                // no errors, and entirety of token is a number
+                if (errCode == errc() && tokenEnd - rest == 0) {
+                    return new MalInt(num);
+                } else if (errCode == errc()) {
+                    // no errors but not a fully formed number
+                    // e.g: 1234abc, 200b
+                    auto n_excep = ReaderException();
+                    n_excep.errMessage = "number token contains invalid characters!";
+                    throw n_excep;
+                } else if (errCode == errc::invalid_argument) { // means tokenStartsWithNumber() failed, not probable
+                    auto n_excep = ReaderException();
+                    n_excep.errMessage = "invalid number!";
+                    throw n_excep;
+                } else if (errCode == errc::result_out_of_range) {
+                    auto n_excep = ReaderException();
+                    n_excep.errMessage = "number is out of range of a 'long'!";
+                    throw n_excep;
+                } else {
+                    auto n_excep = ReaderException();
+                    n_excep.errMessage = "unknown number conversion error :(";
+                    throw n_excep;
+                }
+            } else
+                return new MalSymbol(*reader.next());
         }
     }
 }
