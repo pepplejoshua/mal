@@ -41,7 +41,14 @@ void loop() {
         if (input == "")
             continue;
 
-        cout << Rep(input) << endl;
+        try {
+            cout << Rep(input) << endl;
+            linenoise::AddHistory(input.c_str());
+        } catch (ReaderException &e) {
+            cerr << e.what() << endl;
+            linenoise::AddHistory(input.c_str());
+            continue;
+        }
         linenoise::AddHistory(input.c_str());
     }
 

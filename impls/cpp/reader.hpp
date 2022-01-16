@@ -16,15 +16,15 @@ using std::endl;
 using std::vector;
 using std::cout;
 
-// class TokenizingException : exception {
-// public:
-//     virtual const char* what() const throw()
-//     {
-//         return errMessage.c_str();
-//     }
+class ReaderException : exception {
+public:
+    virtual const char* what() const throw()
+    {
+        return errMessage.c_str();
+    }
 
-//     string errMessage;
-// };
+    string errMessage;
+};
 
 class Tokenizer {
 public:
@@ -243,4 +243,8 @@ optional < MalType* > read_atom(Reader &reader);
 
 optional < MalString* > read_string(Reader &reader);
 
-optional < MalString* > read_quoted_val(Reader &reader);
+optional < MalType* > read_metadata_w_object(Reader &reader);
+
+optional < MalType* > read_quoted_val(Reader &reader);
+
+optional < MalType* > read_dereferenced_val(Reader &reader);

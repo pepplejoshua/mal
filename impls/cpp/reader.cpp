@@ -48,6 +48,14 @@ optional < MalType* > read_form(Reader &reader) {
             return read_vector(reader);
         case '{':
             return read_hashmap(reader);
+        case '\'': // quote
+        case '`': // quasiquote
+        case '~': // unquote or splice-unquote
+            return read_quoted_val(reader);
+        case '@': // dereferenced value
+            return read_dereferenced_val(reader);
+        case '^': // attached meta data dictionary to a MalTypea
+            return read_metadata_w_object(reader);
         default:
             return read_atom(reader);
     }
@@ -71,8 +79,10 @@ optional < MalType* > read_list(Reader &reader) {
         if (item)
             list->append(item.value());
     }
-    cerr << "unbalanced" << endl;
-    return list;
+    // throw reader exception
+    auto r_except = ReaderException();
+    r_except.errMessage = "unbalanced";
+    throw r_except;
 }
 
 optional < MalType* > read_vector(Reader &reader) {
@@ -93,13 +103,25 @@ optional < MalType* > read_vector(Reader &reader) {
         if (item)
             vec->append(item.value());
     }
-    cerr << "unbalanced" << endl;
-    return vec;
+    // throw reader exception
+    auto r_except = ReaderException();
+    r_except.errMessage = "unbalanced";
+    throw r_except;
 }
 
 optional < MalType* > read_hashmap(Reader &reader) {
     // skip over {
-    reader.next();
+    auto lbracket = reader.next().value();
+
+    // not a hashmap?
+    // used to guarantee read_metadata_w_object works
+    // correctly
+    if (lbracket != "{") {
+        // throw reader exception
+        auto r_except = ReaderException();
+        r_except.errMessage = "incorrect formation of hashmap";
+        throw r_except;
+    }
 
     MalHashMap* hmap = new MalHashMap();
     while(auto token = reader.peek()) {
@@ -113,15 +135,16 @@ optional < MalType* > read_hashmap(Reader &reader) {
         // make sure this isn't an incomplete hashmap
         token = reader.peek();
         if (token.value() == "}") {
-            cerr << "unbalanced" << endl;
-            reader.next();
-            return hmap;
+            auto r_except = ReaderException();
+            r_except.errMessage = "unbalanced hashmap";
+            throw r_except;
         }
         auto val = read_form(reader);
         hmap->set(*key, *val);
     }
-    cerr << "unbalanced" << endl;
-    return hmap;
+    auto r_except = ReaderException();
+    r_except.errMessage = "unbalanced";
+    throw r_except;
 }
 
 
@@ -139,14 +162,16 @@ optional < MalString* > read_string(Reader &reader) {
     auto token = reader.next().value();
 
     if (token.length() < 2) {
-        cerr << "unbalanced" << endl;
-        return new MalString(token);
+        auto r_except = ReaderException();
+        r_except.errMessage = "unbalanced";
+        throw r_except;
     } 
 
     // unterminated non-empty string
     if (token.length() > 2 && token[token.length()-1] != '"') {
-        cerr << "unbalanced" << endl;
-        return new MalString(token);
+        auto r_except = ReaderException();
+        r_except.errMessage = "unbalanced";
+        throw r_except;
     } 
     
     if (token.length() == 0) { // empty string
@@ -162,8 +187,9 @@ optional < MalString* > read_string(Reader &reader) {
             case '\\': {
                 ++i;
                 if (i >= stringContent.size()) {
-                    cerr << "unbalanced" << endl;
-                    return new MalString(token);
+                    auto r_except = ReaderException();
+                    r_except.errMessage = "unbalanced";
+                    throw r_except;
                 }
                 char next = stringContent[i];
                 // cout << "prev -> " << c << endl;
@@ -190,6 +216,71 @@ optional < MalString* > read_string(Reader &reader) {
     return new MalString("\"" + finalStr + "\"");
 }
 
-optional < MalString* > read_quoted_val(Reader &reader) {
-    
+optional < MalType* > read_quoted_val(Reader &reader) {
+    string_view token = reader.peek().value();
+
+    char firstChar = token[0];
+    switch (firstChar) {
+        // quote
+        case '\'': {
+            // skip '
+            reader.next();
+            auto quoteList = new MalList();
+            quoteList->append(new MalSymbol("quote"));
+            quoteList->append(read_form(reader).value());
+            return quoteList;
+        }
+         // quasiquote
+        case '`': {
+            // skip `
+            reader.next();
+            auto q_quoteList = new MalList();
+            q_quoteList->append(new MalSymbol("quasiquote"));
+            q_quoteList->append(read_form(reader).value());
+            return q_quoteList;
+        }
+        // unquote or splice-unquote
+        case '~': {
+            // skip either ~ or 
+            // ~@ (which is tokenized into a single token)
+            reader.next();
+            // splice-unquote
+            if (token.length() > 1 && token[1] == '@') {
+                auto s_unquoteList = new MalList();
+                s_unquoteList->append(new MalSymbol("splice-unquote"));
+                s_unquoteList->append(read_form(reader).value());
+                return s_unquoteList;
+            } else { // unquote
+                auto unquoteList = new MalList();
+                unquoteList->append(new MalSymbol("unquote"));
+                unquoteList->append(read_form(reader).value());
+                return unquoteList;
+            }
+            break;
+        }
+        default:
+            auto r_except = ReaderException();
+            r_except.errMessage = "bad quote";
+            throw r_except;
+            abort();
+    }
+}
+
+optional < MalType* > read_dereferenced_val(Reader &reader) {
+    reader.next();
+    auto deref_list = new MalList();
+    deref_list->append(new MalSymbol("deref"));
+    deref_list->append(read_form(reader).value());
+    return deref_list;
+}
+
+optional < MalType* > read_metadata_w_object(Reader &reader) {
+    reader.next();
+    auto meta_list = new MalList();
+    meta_list->append(new MalSymbol("with-meta"));
+    auto metadata_hmap = read_hashmap(reader).value();
+    auto obj = read_form(reader).value();
+    meta_list->append(obj); // read metadata
+    meta_list->append(metadata_hmap); // read object
+    return meta_list;
 }
