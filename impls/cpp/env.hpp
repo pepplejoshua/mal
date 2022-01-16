@@ -13,6 +13,19 @@ using Env = map < string, MalType* >;
 class Environ {
 public:
     Environ(Environ* parent) : enclosing {parent} { }
+
+    Environ(Environ* parent, vector < MalType* > binds, vector < MalType* > exprs) 
+    : enclosing {parent} {
+        if (binds.size() != exprs.size()) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "mismatched argument size.";
+            throw runExcep;
+        }
+
+        for (int i = 0; binds.size() > i; ++i) {
+            set(binds[i], exprs[i]);
+        }
+    }
     
     void set(MalType* id, MalType* val) {
         stored[id->inspect()] = val;

@@ -48,3 +48,8 @@ MalFunc* MalType::as_func() {
     assert(type() == Func);
     return static_cast<MalFunc *>(this);
 }
+
+MalUserFn* MalType::as_userfn() {
+    assert(type() == UserFn);
+    return static_cast<MalUserFn *>(this);
+}

@@ -131,6 +131,16 @@ MalType* EVAL(MalType* ast, Environ* curEnv) {
                     runExcep.errMessage = "let* form requires 2nd arguments to be a sequence of bindings.";
                     throw runExcep;
                 }
+            } else if (symstr == "do") { // do special form
+                MalType* _AST = NIL;
+                for (int i = 1; rawlist.size() > i; ++i) {
+                    _AST = rawlist[i];
+                    if(i == rawlist.size() - 1) { // final expr in list
+                        break;
+                    }
+                    EVAL(rawlist[i], curEnv);
+                }
+                return EVAL(_AST, curEnv);
             }
             // if it is neither, it will full through to the bottom
             // and be a function call

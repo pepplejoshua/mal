@@ -18,11 +18,12 @@ class MalNil;
 class MalBoolean;
 class MalInt;
 class MalFunc;
+class MalUserFn;
 
 enum Type {
     List, Vector, HashMap, Symbol,
     Keyword, String, Nil, Boolean, Int,
-    Func
+    Func, UserFn
 };
 
 class MalType {
@@ -39,6 +40,7 @@ public:
     MalBoolean* as_boolean();
     MalInt* as_int();
     MalFunc* as_func();
+    MalUserFn* as_userfn();
 };
 
 class TypeException : exception {
@@ -316,7 +318,24 @@ public:
     string inspect() {
         return "{function " + nameTag + "}";
     }
+
 private:
     FuncPtr m_fn;
     string nameTag;
+};
+
+class MalUserFn : public MalType {
+public:
+    MalUserFn() { }
+
+    Type type() {
+        return UserFn;
+    }
+
+    string inspect() {
+        return "#<function>";
+    }
+
+private:
+
 };
