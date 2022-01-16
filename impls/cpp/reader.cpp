@@ -1,11 +1,4 @@
-#include <iostream>
-#include <string_view>
-#include <string>
-#include <exception>
-#include <vector>
-#include <optional>
 #include <charconv>
-#include "mal_types.hpp"
 #include "reader.hpp"
 
 using std::string;
@@ -17,12 +10,9 @@ using std::vector;
 using std::cout;
 using std::cerr;
 
-auto NIL = new MalNil();
-auto TRUE = new MalBoolean(true);
-auto FALSE = new MalBoolean(false);
-
 auto comment = CommentException();
 
+Env glob;
 vector < string_view > tokenize(string &input) {
     Tokenizer tokenizer(input);
     vector < string_view > tokens;
@@ -32,8 +22,9 @@ vector < string_view > tokenize(string &input) {
     return tokens;
 }
 
-optional < MalType* > read_str(string &input) {
+optional < MalType* > read_str(string &input, Env global) {
     vector < string_view > tokens = tokenize(input);
+    glob = global;
     // pass vector of all tokens to reader
     Reader reader(tokens);
     return read_form(reader);
@@ -167,9 +158,10 @@ bool isBooleanToken(string_view token) {
     return false;
 }
 
-bool tokenStartsWithNumber(string_view token) {
+bool tokenStartsWithNumberOrMinus(string_view token) {
     // isdigit returns 0 when i is not a digit
-    if (isdigit(token[0]))
+    // or is a negative number
+    if (isdigit(token[0]) || (token[0] == '-' && token.size() > 1))
         return true;
     return false;
 }
@@ -189,11 +181,11 @@ optional < MalType* > read_atom(Reader &reader) {
         default: {
             if (isNilToken(token)) {
                 reader.next();
-                return NIL;
+                return glob.at("nil");
             } else if (isBooleanToken(token)) {
                 reader.next();
-                return token == "true" ? TRUE : FALSE;
-            } else if (tokenStartsWithNumber(token)) {
+                return token == "true" ? glob.at("true") : glob.at("false");
+            } else if (tokenStartsWithNumberOrMinus(token)) {
                 reader.next();
                 // cast token to long from a string and then make a MalInt with it
                 long num = 0;

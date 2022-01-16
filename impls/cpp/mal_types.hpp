@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>
 #include <string>
 #include <vector>
 #include <string_view>
@@ -7,17 +8,66 @@
 
 using namespace std;
 
+class MalList;
+class MalVector;
+class MalHashMap;
+class MalSymbol;
+class MalKeyword;
+class MalString;
+class MalNil;
+class MalBoolean;
+class MalInt;
+class MalFunc;
+
+enum Type {
+    List, Vector, HashMap, Symbol,
+    Keyword, String, Nil, Boolean, Int,
+    Func
+};
+
 class MalType {
 public:
-    virtual string typeID() = 0;
+    virtual Type type() = 0;
     virtual string inspect() = 0;
+    MalList* as_list();
+    MalVector* as_vector();
+    MalHashMap* as_hashmap();
+    MalSymbol* as_symbol();
+    MalKeyword* as_keyword();
+    MalString* as_string();
+    MalNil* as_nil();
+    MalBoolean* as_boolean();
+    MalInt* as_int();
+    MalFunc* as_func();
 };
+
+class TypeException : exception {
+public:
+    virtual const char* what() const throw()
+    {
+        return errMessage.c_str();
+    }
+
+    string errMessage;
+};
+
+class RuntimeException : exception {
+public:
+    virtual const char* what() const throw()
+    {
+        return errMessage.c_str();
+    }
+
+    string errMessage;
+};
+
 
 class MalList : public MalType{
 public:
     MalList() { }
-    string typeID() {
-        return "list";
+
+    Type type() {
+        return List;
     }
 
     // add new item to list
@@ -41,6 +91,10 @@ public:
         return out;
     }
 
+    vector < MalType* > items() {
+        return l_items;
+    }
+
 private:
     vector < MalType* > l_items;
 };
@@ -48,8 +102,9 @@ private:
 class MalVector : public MalType{
 public:
     MalVector() { }
-    string typeID() {
-        return "vector";
+
+    Type type() {
+        return Vector;
     }
 
     // add new item to list
@@ -73,6 +128,10 @@ public:
         return out;
     }
 
+    vector < MalType* > items() {
+        return v_items;
+    }
+
 private:
     vector < MalType* > v_items;
 };
@@ -81,8 +140,8 @@ class MalHashMap : public MalType {
 public:
     MalHashMap() {}
 
-    string typeID() {
-        return "hashmap";
+    Type type() {
+        return HashMap;
     }
 
     void set(MalType* key, MalType* val) {
@@ -97,6 +156,10 @@ public:
         }
 
         return nullptr;
+    }
+
+    auto items() {
+        return hmap;
     }
 
     string inspect() {
@@ -125,8 +188,8 @@ class MalSymbol : public MalType {
 public:
     MalSymbol(string_view str): s_str {str} { }
 
-    string typeID() {
-        return "symbol";
+    Type type() {
+        return Symbol;
     }
 
     string str() {
@@ -145,8 +208,8 @@ class MalKeyword : public MalType {
 public:
     MalKeyword(string_view str): k_str {str} { }
 
-    string typeID() {
-        return "keyword";
+    Type type() {
+        return Keyword;
     }
 
     string inspect() {
@@ -161,9 +224,9 @@ class MalString : public MalType {
 public:
     MalString(string_view str): s_str {str} { }
 
-    string typeID() {
-        return "string";
-    }
+    Type type() {
+        return String;
+    }   
 
     string str() {
         return s_str;
@@ -181,8 +244,8 @@ class MalNil : public MalType {
 public:
     MalNil() { }
 
-    string typeID() {
-        return "nil";
+    Type type() {
+        return Nil;
     }
 
     string inspect() {
@@ -194,8 +257,8 @@ class MalBoolean : public MalType {
 public:
     MalBoolean(bool val) : value {val} { }
 
-    string typeID() {
-        return "boolean";
+    Type type() {
+        return Boolean;
     }
 
     string inspect() {
@@ -210,8 +273,8 @@ class MalInt : public MalType {
 public:
     MalInt(long val) : value {val} { }
 
-    string typeID() {
-        return "int";
+    Type type() {
+        return Int;
     }
 
     long to_long() {
@@ -224,4 +287,32 @@ public:
 
 private:
     long value;
+};
+
+// this means:
+// a FuncPtr points to an (unnamed) function that returns a pointer to a 
+// Maltype, and takes 2 arguments:
+// first is a pointer to an array of MalTypes which are the MalFunc's
+// true arguments and the number of arguments in this arguments array
+using FuncPtr = MalType* (*)(MalType** args, size_t argc);
+
+class MalFunc : public MalType {
+public:
+    MalFunc(FuncPtr fn, string fnNameTag) : m_fn{fn}, nameTag{fnNameTag} 
+    { }
+
+    Type type() {
+        return Func;
+    }
+
+    FuncPtr callable() {
+        return m_fn;
+    }
+
+    string inspect() {
+        return "{function " + nameTag + "}";
+    }
+private:
+    FuncPtr m_fn;
+    string nameTag;
 };

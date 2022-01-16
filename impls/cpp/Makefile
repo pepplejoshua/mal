@@ -5,10 +5,10 @@ CXXFLAGS ?= -std=c++20
 
 build: step2_eval
 
-step2_eval: step2_eval.cpp reader.cpp printer.cpp
+step2_eval: step2_eval.cpp reader.cpp printer.cpp mal_types.cpp
 	clang++ $(CXXFLAGS) -o $@ $^
 
-step1_read_print: step1_read_print.cpp reader.cpp printer.cpp
+step1_read_print: step1_read_print.cpp reader.cpp printer.cpp  mal_types.cpp
 	clang++ $(CXXFLAGS) -o $@ $^
 # is equivalent to
 # clang++ $(CXXFLAGS) -o step1_read_print step1_read_print.cpp reader.cpp printer.cpp

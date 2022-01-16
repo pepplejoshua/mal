@@ -7,6 +7,7 @@
 #include <vector>
 #include <optional>
 #include "mal_types.hpp"
+#include "env.hpp"
 
 using std::string;
 using std::string_view;
@@ -232,7 +233,7 @@ private:
 
 vector < string_view > tokenize(string &input);
 
-optional < MalType* > read_str(string &input);
+optional < MalType* > read_str(string &input, Env);
 
 optional < MalType* > read_form(Reader &reader);
 
