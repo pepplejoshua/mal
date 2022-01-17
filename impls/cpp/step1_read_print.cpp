@@ -1,7 +1,7 @@
 #include <string>
 #include <string_view>
 #include <iostream>
-#include "linenoise.hpp"
+#include "../linenoise.hpp"
 #include "reader.hpp"
 #include "printer.hpp"
 #include "mal_types.hpp"

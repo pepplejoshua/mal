@@ -1,6 +1,6 @@
 #include <string>
 #include <iostream>
-#include "linenoise.hpp"
+#include "../linenoise.hpp"
 
 using std::string;
 using std::getline;

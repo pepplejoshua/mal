@@ -23,6 +23,7 @@ public:
         }
 
         for (int i = 0; binds.size() > i; ++i) {
+            // cout << binds[i]->inspect() << " " << exprs[i]->inspect() << endl;
             set(binds[i], exprs[i]);
         }
     }
