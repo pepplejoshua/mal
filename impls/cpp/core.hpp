@@ -27,25 +27,64 @@ namespace Core {
     }
     
     MalType* add(MalType** args, size_t argc) {
-        assert(argc == 2);
-        auto l = args[0];
-        auto r = args[1];
+        assert(argc > 0);
+        // check the type of the first argument
+        // to set the precedence, else throw on
+        // type deviation
+        auto f = args[0];
+        Type calcType = f->type();
 
-        assertTypeCheck(l->type(), r->type());
-        if (typeCheck(l->type(), Int)) {
-            long sum = l->as_int()->to_long() + r->as_int()->to_long();
+        if (calcType == Int) {
+            long sum = 0;
+            for (int i = 0; argc > i; ++i) {
+                auto rhs = args[i];
+                if (typeCheck(rhs->type(), Int)) {
+                    sum += rhs->as_int()->to_long();
+                } else {
+                    auto typeExcep = TypeException();
+                    typeExcep.errMessage = "'+' not defined for operands of varying types.";
+                    throw typeExcep;
+                }
+            }
             return new MalInt(sum);
-        } else if (typeCheck(l->type(), String)) {
-            string concat = "";
-            auto lhs = l->as_string()->content();
-            auto rhs = r->as_string()->content();
-            concat +=  "\"" + lhs + rhs + "\""; 
-            return new MalString(concat);
+        } else if (calcType == String) {
+            string res = "";
+            for (int i = 0; argc > i; ++i) {
+                auto rhs = args[i];
+                if (typeCheck(rhs->type(), String)) {
+                    res += rhs->as_string()->content();
+                } else {
+                    auto typeExcep = TypeException();
+                    typeExcep.errMessage = "'+' not defined for operands of varying types.";
+                    throw typeExcep;
+                }
+            }
+            return new MalString(res);
         } else {
             auto typeExcep = TypeException();
             typeExcep.errMessage = "'+' not defined for operands.";
             throw typeExcep;
         }
+
+        // assert(argc == 2);
+        // auto l = args[0];
+        // auto r = args[1];
+
+        // assertTypeCheck(l->type(), r->type());
+        // if (typeCheck(l->type(), Int)) {
+        //     long sum = l->as_int()->to_long() + r->as_int()->to_long();
+        //     return new MalInt(sum);
+        // } else if (typeCheck(l->type(), String)) {
+        //     string concat = "";
+        //     auto lhs = l->as_string()->content();
+        //     auto rhs = r->as_string()->content();
+        //     concat +=  "\"" + lhs + rhs + "\""; 
+        //     return new MalString(concat);
+        // } else {
+        //     auto typeExcep = TypeException();
+        //     typeExcep.errMessage = "'+' not defined for operands.";
+        //     throw typeExcep;
+        // }
     }
 
     MalType* sub(MalType** args, size_t argc) {
@@ -218,6 +257,8 @@ namespace Core {
         } else if (item->type() == String) {
             auto str = item->as_string()->content();
             count = str.size();
+        } else {
+            count = 1;
         }
         return new MalInt(count);
     }
