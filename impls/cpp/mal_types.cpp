@@ -49,7 +49,7 @@ MalFunc* MalType::as_func() {
     return static_cast<MalFunc *>(this);
 }
 
-MalUserFn* MalType::as_userfn() {
-    assert(type() == UserFn);
-    return static_cast<MalUserFn *>(this);
+MalSequence* MalType::as_sequence() {
+    assert(type() == List || type() == Vector);
+    return static_cast<MalSequence *>(this);
 }

@@ -1,11 +1,12 @@
 #include <string>
 #include <string_view>
 #include <iostream>
-#include "linenoise.hpp"
+#include "../linenoise.hpp"
 #include "reader.hpp"
 #include "printer.hpp"
 #include "mal_types.hpp"
 #include "env.hpp"
+#include "core.hpp"
 
 using std::string;
 using std::getline;
@@ -13,29 +14,14 @@ using std::cout;
 using std::cin;
 using std::endl;
 
-// used to cache nil, true and false to be reused by reader
-Env CONSTANTS;
+// // used to cache nil, true and false to be reused by reader
+// Env CONSTANTS;
 // used as the global environment
 Environ* TOP_LEVEL = new Environ(NULL);
 auto NIL = new MalNil();
 auto TRUE = new MalBoolean(true);
 auto FALSE = new MalBoolean(false);
-
-void assertTypeCheck(Type A, Type Expected) {
-    assert(A == Expected);
-}
-
-bool typeCheck(Type A, Type Expected) {
-    return A == Expected;
-}
-
-// pre-defined functions
-MalType* add(MalType** args, size_t argc);
-MalType* sub(MalType** args, size_t argc);
-MalType* mult(MalType** args, size_t argc);
-MalType* div(MalType** args, size_t argc);
-MalType* or_(MalType** args, size_t argc);
-MalType* and_(MalType** args, size_t argc);
+auto VARIADIC = new MalSymbol("&");
 
 MalType* READ(string input) {
     return *read_str(input, CONSTANTS);
@@ -46,10 +32,6 @@ MalType* eval_ast(MalType* ast, Environ* curEnv) {
     switch (ast->type()) {
         case Symbol: {
             auto symbol = ast->as_symbol();
-            return curEnv->get(symbol);
-        }
-        case Keyword: {
-            auto symbol = ast->as_keyword();
             return curEnv->get(symbol);
         }
         case List: {
@@ -128,7 +110,7 @@ MalType* EVAL(MalType* ast, Environ* curEnv) {
                     return eval_let(vec, body, letEnv);
                 } else {
                     auto runExcep = RuntimeException();
-                    runExcep.errMessage = "let* form requires 2nd arguments to be a sequence of bindings.";
+                    runExcep.errMessage = "let* form requires 2nd argument to be a sequence of bindings.";
                     throw runExcep;
                 }
             } else if (symstr == "do") { // do special form
@@ -141,6 +123,117 @@ MalType* EVAL(MalType* ast, Environ* curEnv) {
                     EVAL(rawlist[i], curEnv);
                 }
                 return EVAL(_AST, curEnv);
+            } else if (symstr == "if") { // if statement
+                // (if condition trueBody falseBody?)
+                // condition that isn't nil or false is truthy
+                // falseBody? can be forgone for a nil default return:
+                // (if condition trueBody)
+                if (rawlist.size() < 3 || rawlist.size() > 4) {
+                    auto runExcep = RuntimeException();
+                    runExcep.errMessage = "if form: (if condition trueBody optionalFalseBody?)";
+                    throw runExcep;
+                }
+
+                auto cond = rawlist[1];
+                auto trueBody = rawlist[2];
+                MalType* falseBody = NIL;
+                if (rawlist.size() == 4) { falseBody = rawlist[3]; }
+                auto e_cond = EVAL(cond, curEnv);
+                // nil is nontruthy
+                if (e_cond->type() == Nil) {
+                    return EVAL(falseBody, curEnv);
+                } else if (e_cond->type() == Boolean) {
+                    auto bool_cond = e_cond->as_boolean();
+                    // false condition
+                    if (bool_cond->inspect() == "false") {
+                        return EVAL(falseBody, curEnv);
+                    }
+                    return EVAL(trueBody, curEnv);
+                } else
+                    return EVAL(trueBody, curEnv);
+            } else if (symstr == "fn*") { // function definition
+                // make sure it has 3 parameters
+                if (rawlist.size() != 3) {
+                    auto runExcep = RuntimeException();
+                    runExcep.errMessage = "fn* form requires 2 arguments (bindings and a body).";
+                    throw runExcep;
+                }
+                // get bindings and let* body
+                auto bindings = rawlist[1];
+                auto body = rawlist[2];
+                vector < MalType* > fn_params;
+                // make sure bindings are in a list or vector
+                if (bindings->type() == List) {
+                    fn_params = bindings->as_list()->items();
+                } else if (bindings->type() == Vector) {
+                    fn_params = bindings->as_vector()->items();
+                } else {
+                    auto runExcep = RuntimeException();
+                    runExcep.errMessage = "fn* form requires 2nd argument to be a sequence of bindable Symbols.";
+                    throw runExcep;
+                }
+
+                bool variadic = false;
+                size_t variadic_index = -1;
+                vector < MalType* > var_params;
+                // check that passed params are either Keywords/Symbols
+                for (int i = 0; fn_params.size() > i; ++i) {
+                    auto item = fn_params[i];
+                    if (item->type() != Symbol) {
+                        auto runExcep = RuntimeException();
+                        runExcep.errMessage = "fn* parameters have to be bindable Symbols.";
+                        throw runExcep;
+                    }
+                    if (item->inspect() == "&") {
+                        if (i + 2 != fn_params.size()) {
+                            auto runExcep = RuntimeException();
+                            runExcep.errMessage = "variadic function requires 1 variadic parameter.";
+                            throw runExcep;
+                        }
+                        variadic = true;
+                        variadic_index = i;
+                        continue;
+                    }
+                    var_params.push_back(item);
+                }
+
+                // why does this work????
+                auto closure = [&, variadic,  variadic_index, curEnv, var_params, body]
+                                (MalType** args, size_t argc) {
+                    auto fn_args = vector < MalType* >(args, args + argc);
+                    Environ* fnEnv = NULL;
+
+                    // handle arguments properly
+                    if (variadic) {
+                        // this allows u to pass nothing for the variadic
+                        // parameter
+                        // handling variadic functions
+                        // (def! a (fn* [a b & rest]) (list? rest))
+                        // (a 1 2) => then rest is ()
+                        // (a 1 2 3 4 5) => then rest is (3 4 5)
+                        if (fn_args.size() < (var_params.size() - 1)) {
+                            auto runExcep = RuntimeException();
+                            runExcep.errMessage = "variadic function requires at least " + to_string(var_params.size() - 1) + " arguments.";
+                            throw runExcep;
+                        }
+                        auto v_arg = new MalList();
+                        vector < MalType* > var_args;
+                        for (int i = 0; var_params.size() - 1 > i; ++i) {
+                            var_args.push_back(fn_args[i]);
+                        }
+
+                        for (int i = var_params.size() - 1; fn_args.size() > i; ++i) {
+                            v_arg->append(fn_args[i]);
+                        }
+
+                        var_args.push_back(v_arg);
+                        fnEnv = new Environ(curEnv, var_params, var_args);
+                    } else {
+                        fnEnv = new Environ(curEnv, var_params, fn_args);
+                    }
+                    return EVAL(body, fnEnv);
+                };
+                return new MalFunc(closure, "lambda");
             }
             // if it is neither, it will full through to the bottom
             // and be a function call
@@ -149,10 +242,15 @@ MalType* EVAL(MalType* ast, Environ* curEnv) {
         // then call list[0] as a function with 
         // rest of list as it's argument
         auto list = eval_ast(ast, curEnv)->as_list()->items();
-        auto fn = list[0]->as_func();
+        auto callable = list[0];
+        // check if fn is built in or a user fn
+        auto fn = callable->as_func();
         auto args = list.data() + 1; // start after fn item
         auto argc = list.size() - 1; // count args - fn item
         return fn->callable()(args, argc);
+        auto runExcep = RuntimeException();
+        runExcep.errMessage = "'" + callable->inspect() + "' is not a callable.";
+        throw runExcep;
     }
 }
 
@@ -190,14 +288,22 @@ void loop() {
     CONSTANTS["nil"] = NIL;
     CONSTANTS["true"] = TRUE;
     CONSTANTS["false"] = FALSE;
-
-    TOP_LEVEL->set(new MalSymbol("+"), new MalFunc(add, "+"));
-    TOP_LEVEL->set(new MalSymbol("-"), new MalFunc(sub, "-"));
-    TOP_LEVEL->set(new MalSymbol("*"), new MalFunc(mult, "*"));
-    TOP_LEVEL->set(new MalSymbol("/"), new MalFunc(div, "/"));
-    TOP_LEVEL->set(new MalSymbol("or"), new MalFunc(or_, "or"));
-    TOP_LEVEL->set(new MalSymbol("and"), new MalFunc(and_, "and"));
-
+    CONSTANTS["&"] = VARIADIC;
+    
+    for (auto fn : Core::getCoreBuiltins()) {
+        TOP_LEVEL->set(new MalSymbol(fn.first), new MalFunc(fn.second, fn.first));
+    }
+    
+    // create not, and execute it to bind into Env
+    // C++ Raw strings require parentheses as delimiters
+    // which is ironic, so delimter for this is:
+    // code(content)code, with content being actual string
+    auto notFn = R"code((def! not
+                        (fn* [a]
+                            (if a
+                                false
+                                true))))code";
+    Rep(notFn);
     while(true) {   
         bool quit = linenoise::Readline("user> ", input);
         if (quit || input == ".q")
@@ -226,139 +332,6 @@ void loop() {
     linenoise::SaveHistory(historyPath.c_str());
 }
 
-
-
 int main() {
     loop();
-}
- 
-MalType* add(MalType** args, size_t argc) {
-    assert(argc == 2);
-    auto l = args[0];
-    auto r = args[1];
-
-    assertTypeCheck(l->type(), r->type());
-    if (typeCheck(l->type(), Int)) {
-        long sum = l->as_int()->to_long() + r->as_int()->to_long();
-        return new MalInt(sum);
-    } else if (typeCheck(l->type(), String)) {
-        string concat = "";
-        auto lhs = l->as_string()->content();
-        auto rhs = r->as_string()->content();
-        concat +=  "\"" + lhs + rhs + "\""; 
-        return new MalString(concat);
-    } else {
-        auto typeExcep = TypeException();
-        typeExcep.errMessage = "'+' not defined for operands.";
-        throw typeExcep;
-    }
-}
-
-MalType* sub(MalType** args, size_t argc) {
-    assert(argc == 2);
-    auto l = args[0];
-    auto r = args[1];
-
-    assertTypeCheck(l->type(), r->type());
-    if (typeCheck(l->type(), Int)) {
-        long diff = l->as_int()->to_long() - r->as_int()->to_long();
-        return new MalInt(diff);
-    } else {
-        auto typeExcep = TypeException();
-        typeExcep.errMessage = "'-' not defined for operands.";
-        throw typeExcep;
-    }
-}
-
-MalType* mult(MalType** args, size_t argc) {
-    assert(argc == 2);
-    auto l = args[0];
-    auto r = args[1];
-
-    assertTypeCheck(l->type(), r->type());
-    if (typeCheck(l->type(), Int)) {
-        long sum = l->as_int()->to_long() * r->as_int()->to_long();
-        return new MalInt(sum);
-    } else {
-        auto typeExcep = TypeException();
-        typeExcep.errMessage = "'*' not defined for operands.";
-        throw typeExcep;
-    }
-}
-
-MalType* div(MalType** args, size_t argc) {
-    assert(argc == 2);
-    auto l = args[0];
-    auto r = args[1];
-
-    assertTypeCheck(l->type(), r->type());
-    if (typeCheck(l->type(), Int)) {
-        long rhs = r->as_int()->to_long();
-
-        if (rhs == 0) {
-            auto runExcep = RuntimeException();
-            runExcep.errMessage = "division by 0 is illegal.";
-            throw runExcep;
-        }
-        else {
-            long sum = l->as_int()->to_long() / rhs;
-            return new MalInt(sum);
-        }
-    } else {
-        auto typeExcep = TypeException();
-        typeExcep.errMessage = "'/' not defined for operands.";
-        throw typeExcep;
-    }
-}
-
-MalType* or_(MalType** args, size_t argc) {
-    assert(argc == 2);
-    auto l = args[0];
-    auto r = args[1];
-
-    assertTypeCheck(l->type(), r->type());
-    if (typeCheck(l->type(), Boolean)) {
-        bool lhs = l->as_boolean()->val();
-        // short circuit eval:
-        // true or false: if lhs is true, return it
-        if (lhs) {
-            return l;
-        }
-        // false or true: if lhs isnt true, and rhs is, return it
-        bool rhs = r->as_boolean()->val();
-        if (rhs) {
-            return r;
-        }
-        else return l; // false or false: if neither is true, return either
-    } else {
-        auto typeExcep = TypeException();
-        typeExcep.errMessage = "'or' not defined for non-boolean operands.";
-        throw typeExcep;
-    }
-}
-
-MalType* and_(MalType** args, size_t argc) {
-    assert(argc == 2);
-    auto l = args[0];
-    auto r = args[1];
-
-    assertTypeCheck(l->type(), r->type());
-    if (typeCheck(l->type(), Boolean)) {
-        bool lhs = l->as_boolean()->val();
-        // short circuit eval:
-        // false and true: if lhs is false, return it
-        if (!lhs) {
-            return l;
-        }
-        // true and false: if lhs is true, and rhs is false, return rhs
-        bool rhs = r->as_boolean()->val();
-        if (!rhs) {
-            return r;
-        }
-        else return l; // true and true: if neither is false, return either
-    } else {
-        auto typeExcep = TypeException();
-        typeExcep.errMessage = "'and' not defined for non-boolean operands.";
-        throw typeExcep;
-    }
 }

@@ -178,6 +178,12 @@ optional < MalType* > read_atom(Reader &reader) {
         case ':': {
             return read_keyword(reader);
         }
+        case '&': {
+            if (token.size() == 1) {
+                reader.next();
+                return glob.at("&");
+            }
+        }
         default: {
             if (isNilToken(token)) {
                 reader.next();

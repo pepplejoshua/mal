@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <string_view>
+#include <functional>
 #include <map>
 
 using namespace std;
@@ -18,12 +19,12 @@ class MalNil;
 class MalBoolean;
 class MalInt;
 class MalFunc;
-class MalUserFn;
+class MalSequence;
 
 enum Type {
     List, Vector, HashMap, Symbol,
     Keyword, String, Nil, Boolean, Int,
-    Func, UserFn
+    Func, Seq
 };
 
 class MalType {
@@ -40,7 +41,7 @@ public:
     MalBoolean* as_boolean();
     MalInt* as_int();
     MalFunc* as_func();
-    MalUserFn* as_userfn();
+    MalSequence* as_sequence();
 };
 
 class TypeException : exception {
@@ -63,8 +64,31 @@ public:
     string errMessage;
 };
 
+class MalSequence : public MalType {
+public:
+    string contents(bool readable=true) {
+        string out = "";
+        for (int i = 0; stored.size() > i; ++i) {
+            auto item = stored[i];
+            if (item->type() == List || item->type() == Vector) {
+                if (!readable) {
+                    out += item->as_sequence()->contents(readable) + " ";
+                    continue;
+                }
+            }                
+            out += item->inspect();
 
-class MalList : public MalType{
+            if (i + 1 != stored.size())
+                out += " ";
+        }
+        return out;
+    }
+
+protected:
+    vector < MalType* > stored;
+};
+
+class MalList : public MalSequence {
 public:
     MalList() { }
 
@@ -74,34 +98,23 @@ public:
 
     // add new item to list
     void append(MalType* item) {
-        l_items.push_back(item);
+        stored.push_back(item);
     }
 
     string inspect() {
         string out = "(";
-        for (auto item : l_items) {
-            out += item->inspect() + " ";
-        }
-        // overwrite the last append space 
-        // only if we have list items
-        if (out.length() > 1) {
-            out[out.length()-1] = ')';
-        }
-        else
-            out += ')';
+        out += contents();
+        out += ')';
 
         return out;
     }
 
     vector < MalType* > items() {
-        return l_items;
+        return stored;
     }
-
-private:
-    vector < MalType* > l_items;
 };
 
-class MalVector : public MalType{
+class MalVector : public MalSequence {
 public:
     MalVector() { }
 
@@ -111,31 +124,20 @@ public:
 
     // add new item to list
     void append(MalType* item) {
-        v_items.push_back(item);
+        stored.push_back(item);
     }
 
     string inspect() {
         string out = "[";
-        for (auto item : v_items) {
-            out += item->inspect() + " ";
-        }
-        // overwrite the last append space 
-        // only if we have list items
-        if (out.length() > 1) {
-            out[out.length()-1] = ']';
-        }
-        else
-            out += ']';
+        out += contents();
+        out += ']';
 
         return out;
     }
 
     vector < MalType* > items() {
-        return v_items;
+        return stored;
     }
-
-private:
-    vector < MalType* > v_items;
 };
 
 class MalHashMap : public MalType {
@@ -300,18 +302,18 @@ private:
 // Maltype, and takes 2 arguments:
 // first is a pointer to an array of MalTypes which are the MalFunc's
 // true arguments and the number of arguments in this arguments array
-using FuncPtr = MalType* (*)(MalType** args, size_t argc);
+using Function = function< MalType*(MalType**, size_t) >;
 
 class MalFunc : public MalType {
 public:
-    MalFunc(FuncPtr fn, string fnNameTag) : m_fn{fn}, nameTag{fnNameTag} 
+    MalFunc(Function fn, string fnNameTag) : m_fn{fn}, nameTag{fnNameTag} 
     { }
 
     Type type() {
         return Func;
     }
 
-    FuncPtr callable() {
+    Function callable() {
         return m_fn;
     }
 
@@ -320,22 +322,6 @@ public:
     }
 
 private:
-    FuncPtr m_fn;
+    Function m_fn { NULL };
     string nameTag;
-};
-
-class MalUserFn : public MalType {
-public:
-    MalUserFn() { }
-
-    Type type() {
-        return UserFn;
-    }
-
-    string inspect() {
-        return "#<function>";
-    }
-
-private:
-
 };
