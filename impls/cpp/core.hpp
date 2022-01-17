@@ -27,7 +27,12 @@ namespace Core {
     }
     
     MalType* add(MalType** args, size_t argc) {
-        assert(argc > 0);
+        if (argc < 2) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'+' requires at least 2 arguments.";
+            throw runExcep;
+        }
+
         // check the type of the first argument
         // to set the precedence, else throw on
         // type deviation
@@ -65,36 +70,33 @@ namespace Core {
             typeExcep.errMessage = "'+' not defined for operands.";
             throw typeExcep;
         }
-
-        // assert(argc == 2);
-        // auto l = args[0];
-        // auto r = args[1];
-
-        // assertTypeCheck(l->type(), r->type());
-        // if (typeCheck(l->type(), Int)) {
-        //     long sum = l->as_int()->to_long() + r->as_int()->to_long();
-        //     return new MalInt(sum);
-        // } else if (typeCheck(l->type(), String)) {
-        //     string concat = "";
-        //     auto lhs = l->as_string()->content();
-        //     auto rhs = r->as_string()->content();
-        //     concat +=  "\"" + lhs + rhs + "\""; 
-        //     return new MalString(concat);
-        // } else {
-        //     auto typeExcep = TypeException();
-        //     typeExcep.errMessage = "'+' not defined for operands.";
-        //     throw typeExcep;
-        // }
     }
 
     MalType* sub(MalType** args, size_t argc) {
-        assert(argc == 2);
-        auto l = args[0];
-        auto r = args[1];
+        if (argc < 2) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'-' requires at least 2 arguments.";
+            throw runExcep;
+        }
 
-        assertTypeCheck(l->type(), r->type());
-        if (typeCheck(l->type(), Int)) {
-            long diff = l->as_int()->to_long() - r->as_int()->to_long();
+        // check the type of the first argument
+        // to set the precedence, else throw on
+        // type deviation
+        auto f = args[0];
+        Type calcType = f->type();
+
+        if (calcType == Int) {
+            long diff = f->as_int()->to_long();
+            for (int i = 1; argc > i; ++i) {
+                auto rhs = args[i];
+                if (typeCheck(rhs->type(), Int)) {
+                    diff -= rhs->as_int()->to_long();
+                } else {
+                    auto typeExcep = TypeException();
+                    typeExcep.errMessage = "'-' not defined for operands of varying types.";
+                    throw typeExcep;
+                }
+            }
             return new MalInt(diff);
         } else {
             auto typeExcep = TypeException();
@@ -104,14 +106,31 @@ namespace Core {
     }
 
     MalType* mult(MalType** args, size_t argc) {
-        assert(argc == 2);
-        auto l = args[0];
-        auto r = args[1];
+        if (argc < 2) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'*' requires at least 2 arguments.";
+            throw runExcep;
+        }
 
-        assertTypeCheck(l->type(), r->type());
-        if (typeCheck(l->type(), Int)) {
-            long sum = l->as_int()->to_long() * r->as_int()->to_long();
-            return new MalInt(sum);
+        // check the type of the first argument
+        // to set the precedence, else throw on
+        // type deviation
+        auto f = args[0];
+        Type calcType = f->type();
+
+        if (calcType == Int) {
+            long prod = f->as_int()->to_long();
+            for (int i = 1; argc > i; ++i) {
+                auto rhs = args[i];
+                if (typeCheck(rhs->type(), Int)) {
+                    prod *= rhs->as_int()->to_long();
+                } else {
+                    auto typeExcep = TypeException();
+                    typeExcep.errMessage = "'*' not defined for operands of varying types.";
+                    throw typeExcep;
+                }
+            }
+            return new MalInt(prod);
         } else {
             auto typeExcep = TypeException();
             typeExcep.errMessage = "'*' not defined for operands.";
@@ -120,23 +139,36 @@ namespace Core {
     }
 
     MalType* div(MalType** args, size_t argc) {
-        assert(argc == 2);
-        auto l = args[0];
-        auto r = args[1];
+        if (argc < 2) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'/' requires at least 2 arguments.";
+            throw runExcep;
+        }
 
-        assertTypeCheck(l->type(), r->type());
-        if (typeCheck(l->type(), Int)) {
-            long rhs = r->as_int()->to_long();
+        // check the type of the first argument
+        // to set the precedence, else throw on
+        // type deviation
+        auto f = args[0];
+        Type calcType = f->type();
 
-            if (rhs == 0) {
-                auto runExcep = RuntimeException();
-                runExcep.errMessage = "division by 0 is illegal.";
-                throw runExcep;
+        if (calcType == Int) {
+            long div_a = f->as_int()->to_long();
+            for (int i = 1; argc > i; ++i) {
+                auto rhs = args[i];
+                if (typeCheck(rhs->type(), Int)) {
+                    if (rhs->as_int()->to_long() == 0) {
+                        auto runExcep = RuntimeException();
+                        runExcep.errMessage = "division by 0 is illegal.";
+                        throw runExcep;
+                    }
+                    div_a /= rhs->as_int()->to_long();
+                } else {
+                    auto typeExcep = TypeException();
+                    typeExcep.errMessage = "'/' not defined for operands of varying types.";
+                    throw typeExcep;
+                }
             }
-            else {
-                long sum = l->as_int()->to_long() / rhs;
-                return new MalInt(sum);
-            }
+            return new MalInt(div_a);
         } else {
             auto typeExcep = TypeException();
             typeExcep.errMessage = "'/' not defined for operands.";
@@ -145,24 +177,31 @@ namespace Core {
     }
 
     MalType* or_(MalType** args, size_t argc) {
-        assert(argc == 2);
-        auto l = args[0];
-        auto r = args[1];
+        if (argc < 2) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'or' requires at least 2 arguments.";
+            throw runExcep;
+        }
 
-        assertTypeCheck(l->type(), r->type());
-        if (typeCheck(l->type(), Boolean)) {
-            bool lhs = l->as_boolean()->val();
-            // short circuit eval:
-            // true or false: if lhs is true, return it
-            if (lhs) {
-                return l;
+        // check the type of the first argument
+        // to set the precedence, else throw on
+        // type deviation
+        auto f = args[0];
+        Type calcType = f->type();
+
+        if (calcType == Boolean) {
+            bool first = f->as_boolean()->val();
+            for (int i = 1; argc > i; ++i) {
+                auto rhs = args[i];
+                if (typeCheck(rhs->type(), Boolean)) {
+                    first = first || rhs->as_boolean()->val();
+                } else {
+                    auto typeExcep = TypeException();
+                    typeExcep.errMessage = "'or' not defined for operands of varying types.";
+                    throw typeExcep;
+                }
             }
-            // false or true: if lhs isnt true, and rhs is, return it
-            bool rhs = r->as_boolean()->val();
-            if (rhs) {
-                return r;
-            }
-            else return l; // false or false: if neither is true, return either
+            return first ? CONSTANTS["true"] : CONSTANTS["false"];
         } else {
             auto typeExcep = TypeException();
             typeExcep.errMessage = "'or' not defined for non-boolean operands.";
@@ -171,24 +210,31 @@ namespace Core {
     }
 
     MalType* and_(MalType** args, size_t argc) {
-        assert(argc == 2);
-        auto l = args[0];
-        auto r = args[1];
+        if (argc < 2) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'and' requires at least 2 arguments.";
+            throw runExcep;
+        }
 
-        assertTypeCheck(l->type(), r->type());
-        if (typeCheck(l->type(), Boolean)) {
-            bool lhs = l->as_boolean()->val();
-            // short circuit eval:
-            // false and true: if lhs is false, return it
-            if (!lhs) {
-                return l;
+        // check the type of the first argument
+        // to set the precedence, else throw on
+        // type deviation
+        auto f = args[0];
+        Type calcType = f->type();
+
+        if (calcType == Boolean) {
+            bool first = f->as_boolean()->val();
+            for (int i = 1; argc > i; ++i) {
+                auto rhs = args[i];
+                if (typeCheck(rhs->type(), Boolean)) {
+                    first = first && rhs->as_boolean()->val();
+                } else {
+                    auto typeExcep = TypeException();
+                    typeExcep.errMessage = "'and' not defined for operands of varying types.";
+                    throw typeExcep;
+                }
             }
-            // true and false: if lhs is true, and rhs is false, return rhs
-            bool rhs = r->as_boolean()->val();
-            if (!rhs) {
-                return r;
-            }
-            else return l; // true and true: if neither is false, return either
+            return first ? CONSTANTS["true"] : CONSTANTS["false"];
         } else {
             auto typeExcep = TypeException();
             typeExcep.errMessage = "'and' not defined for non-boolean operands.";
@@ -197,17 +243,34 @@ namespace Core {
     }
 
     MalType* exponent(MalType** args, size_t argc) {
-        assert(argc == 2);
-        auto l = args[0];
-        auto r = args[1];
+        if (argc < 2) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'**' requires at least 2 arguments.";
+            throw runExcep;
+        }
 
-        assertTypeCheck(l->type(), r->type());
-        if (typeCheck(l->type(), Int)) {
-            long val = pow(l->as_int()->to_long(), r->as_int()->to_long());
-            return new MalInt(val);
+        // check the type of the first argument
+        // to set the precedence, else throw on
+        // type deviation
+        auto f = args[0];
+        Type calcType = f->type();
+
+        if (calcType == Int) {
+            long pow_a = f->as_int()->to_long();
+            for (int i = 1; argc > i; ++i) {
+                auto rhs = args[i];
+                if (typeCheck(rhs->type(), Int)) {
+                    pow_a = pow(pow_a, rhs->as_int()->to_long());
+                } else {
+                    auto typeExcep = TypeException();
+                    typeExcep.errMessage = "'**' not defined for operands of varying types.";
+                    throw typeExcep;
+                }
+            }
+            return new MalInt(pow_a);
         } else {
             auto typeExcep = TypeException();
-            typeExcep.errMessage = "'*' not defined for operands.";
+            typeExcep.errMessage = "'**' not defined for operands.";
             throw typeExcep;
         }
     }
@@ -221,17 +284,32 @@ namespace Core {
     }
 
     MalType* isList(MalType** args, size_t argc) {
-        assert(argc == 1);
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'list?' requires 1 argument.";
+            throw runExcep;
+        }
+
         return args[0]->type() == List ? CONSTANTS["true"] : CONSTANTS["false"];
     }
 
     MalType* isVector(MalType** args, size_t argc) {
-        assert(argc == 1);
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'vector?' requires 1 argument.";
+            throw runExcep;
+        }
+
         return args[0]->type() == Vector ? CONSTANTS["true"] : CONSTANTS["false"];
     }
 
     MalType* isListOrVecEmpty(MalType** args, size_t argc) {
-        assert(argc == 1);
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'empty?' requires 1 argument.";
+            throw runExcep;
+        }
+
         auto item = args[0];
         bool isEmpty = false;
         if (item->type() == List) {
@@ -245,7 +323,12 @@ namespace Core {
     }
 
     MalType* sequenceCount(MalType** args, size_t argc) {
-        assert(argc == 1);
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'count' requires 1 argument.";
+            throw runExcep;
+        }
+
         auto item = args[0];
         size_t count = 0;
         if (item->type() == List) {
@@ -281,8 +364,14 @@ namespace Core {
         return true;
     }
 
+    // TODO: make variadic when I'm bored
     MalType* isEqual(MalType** args, size_t argc) { 
-        assert(argc == 2);
+        if (argc != 2) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'=' requires 1 argument.";
+            throw runExcep;
+        }
+
         auto l = args[0];
         auto r = args[1];
 
@@ -348,16 +437,44 @@ namespace Core {
         return equal ? CONSTANTS["true"] : CONSTANTS["false"];
     }
 
+    // implement it for a single list or vector argument:
+    //  (< [1 2 3]) => true, just like how
+    // (< 1 2 3) => true
+    // then consider:
+    // (< 1 2 3 [5 6 7] 8 (list 9 10)) => true
     MalType* lessThan(MalType** args, size_t argc) { 
-        assert(argc == 2);
-        auto l = args[0];
-        auto r = args[1];
+        if (argc < 2) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'<' requires at least 2 arguments.";
+            throw runExcep;
+        }
 
-        assertTypeCheck(l->type(), r->type());
-        if (typeCheck(l->type(), Int)) {
-            long lhs = l->as_int()->to_long();
-            long rhs = r->as_int()->to_long();
-            return lhs < rhs ? CONSTANTS["true"] : CONSTANTS["false"];
+        // check the type of the first argument
+        // to set the precedence, else throw on
+        // type deviation
+        auto f = args[0];
+        bool lthan = false;
+        Type calcType = f->type();
+
+        if (calcType == Int) {
+            long lhs = f->as_int()->to_long();
+            for (int i = 1; argc > i; ++i) {
+                auto rhs = args[i];
+                if (typeCheck(rhs->type(), Int)) {
+                    lthan = lhs < rhs->as_int()->to_long();
+                    // if we examine any pair that returns false, 
+                    // end the calculation there
+                    if (!lthan) { 
+                        break;
+                    }
+                    lhs = rhs->as_int()->to_long();
+                } else {
+                    auto typeExcep = TypeException();
+                    typeExcep.errMessage = "'<' not defined for operands of varying types.";
+                    throw typeExcep;
+                }
+            }
+            return lthan ? CONSTANTS["true"] : CONSTANTS["false"];
         } else {
             auto typeExcep = TypeException();
             typeExcep.errMessage = "'<' not defined for non-Int operands.";
@@ -366,49 +483,118 @@ namespace Core {
     }
 
     MalType* lessOrEqual(MalType** args, size_t argc) { 
-        assert(argc == 2);
-        auto l = args[0];
-        auto r = args[1];
+        if (argc < 2) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'<=' requires at least 2 arguments.";
+            throw runExcep;
+        }
 
-        assertTypeCheck(l->type(), r->type());
-        if (typeCheck(l->type(), Int)) {
-            long lhs = l->as_int()->to_long();
-            long rhs = r->as_int()->to_long();
-            return lhs <= rhs ? CONSTANTS["true"] : CONSTANTS["false"];
+        // check the type of the first argument
+        // to set the precedence, else throw on
+        // type deviation
+        auto f = args[0];
+        bool lthan_eq = false;
+        Type calcType = f->type();
+
+        if (calcType == Int) {
+            long lhs = f->as_int()->to_long();
+            for (int i = 1; argc > i; ++i) {
+                auto rhs = args[i];
+                if (typeCheck(rhs->type(), Int)) {
+                    lthan_eq = lhs <= rhs->as_int()->to_long();
+                    // if we examine any pair that returns false, 
+                    // end the calculation there
+                    if (!lthan_eq) { 
+                        break;
+                    }
+                    lhs = rhs->as_int()->to_long();
+                } else {
+                    auto typeExcep = TypeException();
+                    typeExcep.errMessage = "'<=' not defined for operands of varying types.";
+                    throw typeExcep;
+                }
+            }
+            return lthan_eq ? CONSTANTS["true"] : CONSTANTS["false"];
         } else {
             auto typeExcep = TypeException();
-            typeExcep.errMessage = "'>=' not defined for non-Int operands.";
+            typeExcep.errMessage = "'<=' not defined for non-Int operands.";
             throw typeExcep;
         }
     }
 
     MalType* greaterThan(MalType** args, size_t argc) { 
-        assert(argc == 2);
-        auto l = args[0];
-        auto r = args[1];
+        if (argc < 2) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'<' requires at least 2 arguments.";
+            throw runExcep;
+        }
 
-        assertTypeCheck(l->type(), r->type());
-        if (typeCheck(l->type(), Int)) {
-            long lhs = l->as_int()->to_long();
-            long rhs = r->as_int()->to_long();
-            return lhs > rhs ? CONSTANTS["true"] : CONSTANTS["false"];
+        // check the type of the first argument
+        // to set the precedence, else throw on
+        // type deviation
+        auto f = args[0];
+        bool gthan = false;
+        Type calcType = f->type();
+
+        if (calcType == Int) {
+            long lhs = f->as_int()->to_long();
+            for (int i = 1; argc > i; ++i) {
+                auto rhs = args[i];
+                if (typeCheck(rhs->type(), Int)) {
+                    gthan = lhs > rhs->as_int()->to_long();
+                    // if we examine any pair that returns false, 
+                    // end the calculation there
+                    if (!gthan) { 
+                        break;
+                    }
+                    lhs = rhs->as_int()->to_long();
+                } else {
+                    auto typeExcep = TypeException();
+                    typeExcep.errMessage = "'<' not defined for operands of varying types.";
+                    throw typeExcep;
+                }
+            }
+            return gthan ? CONSTANTS["true"] : CONSTANTS["false"];
         } else {
             auto typeExcep = TypeException();
-            typeExcep.errMessage = "'>' not defined for non-Int operands.";
+            typeExcep.errMessage = "'<' not defined for non-Int operands.";
             throw typeExcep;
         }
     }
 
     MalType* greaterOrEqual(MalType** args, size_t argc) { 
-        assert(argc == 2);
-        auto l = args[0];
-        auto r = args[1];
+        if (argc < 2) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'>=' requires at least 2 arguments.";
+            throw runExcep;
+        }
 
-        assertTypeCheck(l->type(), r->type());
-        if (typeCheck(l->type(), Int)) {
-            long lhs = l->as_int()->to_long();
-            long rhs = r->as_int()->to_long();
-            return lhs >= rhs ? CONSTANTS["true"] : CONSTANTS["false"];
+        // check the type of the first argument
+        // to set the precedence, else throw on
+        // type deviation
+        auto f = args[0];
+        bool gthan_eq = false;
+        Type calcType = f->type();
+
+        if (calcType == Int) {
+            long lhs = f->as_int()->to_long();
+            for (int i = 1; argc > i; ++i) {
+                auto rhs = args[i];
+                if (typeCheck(rhs->type(), Int)) {
+                    gthan_eq = lhs >= rhs->as_int()->to_long();
+                    // if we examine any pair that returns false, 
+                    // end the calculation there
+                    if (!gthan_eq) { 
+                        break;
+                    }
+                    lhs = rhs->as_int()->to_long();
+                } else {
+                    auto typeExcep = TypeException();
+                    typeExcep.errMessage = "'>=' not defined for operands of varying types.";
+                    throw typeExcep;
+                }
+            }
+            return gthan_eq ? CONSTANTS["true"] : CONSTANTS["false"];
         } else {
             auto typeExcep = TypeException();
             typeExcep.errMessage = "'>=' not defined for non-Int operands.";

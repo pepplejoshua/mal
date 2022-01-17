@@ -87,6 +87,14 @@ MalType* EVAL(MalType* ast, Environ* curEnv) {
                 auto key = rawlist[1];
                 auto val = rawlist[2];
                 auto e_val = EVAL(val, curEnv);
+                // set function's name to key's inspect
+                if (e_val->type() == Func) {
+                    auto fn = e_val->as_func();
+                    // currently unnamed
+                    if (fn->name() == "<~lambda~>") {
+                        fn->setName(key->inspect());
+                    }
+                }
                 curEnv->set(key, e_val);
                 return e_val;
             } else if (symstr == "let*") {
@@ -233,7 +241,7 @@ MalType* EVAL(MalType* ast, Environ* curEnv) {
                     }
                     return EVAL(body, fnEnv);
                 };
-                return new MalFunc(closure, "lambda");
+                return new MalFunc(closure, "<~lambda~>");
             }
             // if it is neither, it will full through to the bottom
             // and be a function call
@@ -243,13 +251,17 @@ MalType* EVAL(MalType* ast, Environ* curEnv) {
         // rest of list as it's argument
         auto list = eval_ast(ast, curEnv)->as_list()->items();
         auto callable = list[0];
-        // check if fn is built in or a user fn
-        auto fn = callable->as_func();
-        auto args = list.data() + 1; // start after fn item
-        auto argc = list.size() - 1; // count args - fn item
-        return fn->callable()(args, argc);
+
+        if (Core::typeCheck(callable->type(), Func)) {
+            // check if fn is built in or a user fn
+            auto fn = callable->as_func();
+            auto args = list.data() + 1; // start after fn item
+            auto argc = list.size() - 1; // count args - fn item
+            return fn->callable()(args, argc);
+        }
+        auto nonCallable = ast->as_list()->items()[0];
         auto runExcep = RuntimeException();
-        runExcep.errMessage = "'" + callable->inspect() + "' is not a callable.";
+        runExcep.errMessage = "'" + nonCallable->inspect() + "' is not a callable.";
         throw runExcep;
     }
 }
@@ -323,6 +335,10 @@ void loop() {
             continue;
         } catch (RuntimeException &r) {
             cerr << r.what() << endl;
+            linenoise::AddHistory(input.c_str());
+            continue;
+        } catch (TypeException &t) {
+            cerr << t.what() << endl;
             linenoise::AddHistory(input.c_str());
             continue;
         }

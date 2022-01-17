@@ -18,7 +18,8 @@ public:
     : enclosing {parent} {
         if (binds.size() != exprs.size()) {
             auto runExcep = RuntimeException();
-            runExcep.errMessage = "mismatched argument size.";
+            runExcep.errMessage = "mismatched argument size. ";
+            runExcep.errMessage += "expected " + to_string(binds.size()) + " arguments.";
             throw runExcep;
         }
 

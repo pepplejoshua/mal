@@ -321,6 +321,14 @@ public:
         return "{function " + nameTag + "}";
     }
 
+    string name() {
+        return nameTag;
+    }
+
+    void setName(string name) {
+        nameTag = name;
+    }
+
 private:
     Function m_fn { NULL };
     string nameTag;
