@@ -184,6 +184,12 @@ optional < MalType* > read_atom(Reader &reader) {
                 return glob.at("&");
             }
         }
+        case '.': {
+            if (token.size() == 3 && token == "...") {
+                reader.next();
+                return glob.at("...");
+            }
+        }
         default: {
             if (isNilToken(token)) {
                 reader.next();

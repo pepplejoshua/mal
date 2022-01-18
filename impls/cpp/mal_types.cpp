@@ -53,3 +53,8 @@ MalSequence* MalType::as_sequence() {
     assert(type() == List || type() == Vector);
     return static_cast<MalSequence *>(this);
 }
+
+MalSpreader* MalType::as_spreader() {
+    assert(type() == Spreader);
+    return static_cast<MalSpreader *>(this);
+}

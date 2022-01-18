@@ -5,7 +5,7 @@ CXXFLAGS ?= -std=c++20
 
 build: step4_if_fn_do
 
-rem:
+rm:
 	make clean && make
 
 step4_if_fn_do: step4_if_fn_do.cpp reader.cpp printer.cpp mal_types.cpp

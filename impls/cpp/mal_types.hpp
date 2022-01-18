@@ -20,11 +20,12 @@ class MalBoolean;
 class MalInt;
 class MalFunc;
 class MalSequence;
+class MalSpreader;
 
 enum Type {
     List, Vector, HashMap, Symbol,
     Keyword, String, Nil, Boolean, Int,
-    Func, Seq
+    Func, Seq, Spreader
 };
 
 class MalType {
@@ -42,6 +43,7 @@ public:
     MalInt* as_int();
     MalFunc* as_func();
     MalSequence* as_sequence();
+    MalSpreader* as_spreader();
 };
 
 class TypeException : exception {
@@ -91,6 +93,9 @@ protected:
 class MalList : public MalSequence {
 public:
     MalList() { }
+    MalList(vector < MalType* > items) {
+        stored = items;
+    }
 
     Type type() {
         return List;
@@ -117,6 +122,9 @@ public:
 class MalVector : public MalSequence {
 public:
     MalVector() { }
+    MalVector(vector < MalType* > items) {
+        stored = items;
+    }
 
     Type type() {
         return Vector;
@@ -204,8 +212,17 @@ public:
         return str();
     }
 
-private:
+protected:
     string s_str;
+};
+
+class MalSpreader : public MalSymbol {
+public:
+    MalSpreader() : MalSymbol {"..."} { }
+
+    Type type() {
+        return Spreader;
+    }
 };
 
 class MalKeyword : public MalType {

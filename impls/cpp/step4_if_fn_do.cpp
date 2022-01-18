@@ -22,6 +22,7 @@ auto NIL = new MalNil();
 auto TRUE = new MalBoolean(true);
 auto FALSE = new MalBoolean(false);
 auto VARIADIC = new MalSymbol("&");
+auto SPREAD = new MalSpreader();
 
 MalType* READ(string input) {
     return *read_str(input, CONSTANTS);
@@ -32,6 +33,7 @@ MalType* eval_ast(MalType* ast, Environ* curEnv) {
     switch (ast->type()) {
         case Symbol: {
             auto symbol = ast->as_symbol();
+            // if we have encountered a spread, just return it
             return curEnv->get(symbol);
         }
         case List: {
@@ -84,6 +86,16 @@ MalType* EVAL(MalType* ast, Environ* curEnv) {
                     runExcep.errMessage = "def! form requires 2 arguments (symbol and its value).";
                     throw runExcep;
                 }
+                // what is we allow multiple bindings in one
+                // def statement?
+                // it would look like:
+                // (def! [a b c] value), where value is:
+                // a list and exactly 3 items long, e.g: [3 2 1]
+                // a = 3, b = 2, c = 1
+                // or
+                // (def! [a b & c] value), where value is:
+                // a list and at least 2 items long, e.g: [3 2]
+                // a = 3, b = 2, c = ()
                 auto key = rawlist[1];
                 auto val = rawlist[2];
                 auto e_val = EVAL(val, curEnv);
@@ -252,12 +264,58 @@ MalType* EVAL(MalType* ast, Environ* curEnv) {
         auto list = eval_ast(ast, curEnv)->as_list()->items();
         auto callable = list[0];
 
+        // process args to find any spread syntax
+        auto args = list.data() + 1; // start after fn item
+        auto argc = list.size() - 1; // count args - fn item
+        vector < MalType* > arguments;
+        for (int i = 0; argc > i; ++i) {
+            auto item = args[i];
+            // we have found an expand in args, so we need to:
+            // make sure there is an argument after it, 
+            // and it is a sequence. then we take this sequence
+            // and add it to our arguments list, and track arguments count
+            // as well
+            // allows things like:
+            // (callable 1 2 3 ... a), where a is [1 2 3] becomes:
+            // (callable 1 2 3 1 2 3)
+            if (item->type() == Spreader) {
+                if (i + 1 >= argc) {
+                    auto e = RuntimeException();
+                    e.errMessage = "'...' must be followed by another argument.";
+                    throw e;
+                }
+                auto a = args[++i];
+                // cout << obj->inspect() << endl;
+                if (!Core::typeChecksOneOf(a->type(), List, Vector)) {
+                    auto e = RuntimeException();
+                    e.errMessage = "'...' must be followed by Sequential type (List|Vector).";
+                    throw e;
+                }
+                auto items = vector < MalType* >();
+                switch(a->type()) {
+                    case List: {
+                        items = a->as_list()->items();
+                        break;
+                    }
+                    default: {
+                    // default case is for Vectors 
+                        items = a->as_vector()->items();
+                        break;
+                    }
+                }
+                for (auto i : items) {
+                    arguments.push_back(i);
+                }
+            } else {
+                arguments.push_back(item);
+            }
+        }
+        
         if (Core::typeCheck(callable->type(), Func)) {
             // check if fn is built in or a user fn
+            auto a_args = arguments.data();
             auto fn = callable->as_func();
-            auto args = list.data() + 1; // start after fn item
-            auto argc = list.size() - 1; // count args - fn item
-            return fn->callable()(args, argc);
+            return fn->callable()(a_args, arguments.size());
         }
         auto nonCallable = ast->as_list()->items()[0];
         auto runExcep = RuntimeException();
@@ -301,6 +359,7 @@ void loop() {
     CONSTANTS["true"] = TRUE;
     CONSTANTS["false"] = FALSE;
     CONSTANTS["&"] = VARIADIC;
+    CONSTANTS["..."] = SPREAD;
     
     for (auto fn : Core::getCoreBuiltins()) {
         TOP_LEVEL->set(new MalSymbol(fn.first), new MalFunc(fn.second, fn.first));

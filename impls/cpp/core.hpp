@@ -311,7 +311,7 @@ namespace Core {
         }
 
         auto item = args[0];
-        bool isEmpty = false;
+        bool isEmpty = true;
         if (item->type() == List) {
             auto list = item->as_list()->items();
             isEmpty = list.empty();
@@ -606,7 +606,12 @@ namespace Core {
         // calls pr_str(true) on all args, concatenates with " " and then returns it
         string out = "";
         for (int i = 0; argc > i; ++i) {
-            out += pr_str(args[i]);
+            auto content = pr_str(args[i]);
+            if (content[0] == '"' && content[content.size()-1] == '"') {
+                out += content.substr(1, content.size()-2);
+            } else 
+                out += content;
+            
             if (i < argc && i + 1 != argc) {
                 out += " ";
             }
@@ -650,6 +655,70 @@ namespace Core {
         return CONSTANTS["nil"];
     }
 
+    // TODO: implement for strings
+    MalType* sequenceFirst(MalType** args, size_t argc) { 
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'first' requires 1 argument.";
+            throw runExcep;
+        }
+
+        auto arg = args[0];
+        if (typeChecksOneOf(arg->type(), List, Vector)) {
+            if (arg->type() == List) {
+                auto list = arg->as_list();
+                if (list->items().size() >= 1)
+                    return list->items()[0];
+                else
+                    return CONSTANTS["nil"];
+            } else {
+                auto vec = arg->as_vector();
+                if (vec->items().size() >= 1)
+                    return vec->items()[0];
+                else
+                    return CONSTANTS["nil"];
+            }
+        } else {
+            auto typeExcep = TypeException();
+            typeExcep.errMessage = "'first' not defined for non-sequential operands.";
+            throw typeExcep;
+        }
+    }
+
+    // TODO: implement for strings
+    MalType* sequenceRest(MalType** args, size_t argc) { 
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'rest' requires 1 argument.";
+            throw runExcep;
+        }
+
+        auto arg = args[0];
+        if (typeChecksOneOf(arg->type(), List, Vector)) {
+            if (arg->type() == List) {
+                auto list = arg->as_list()->items();
+                if (list.size() > 1) {
+                    auto rest = vector < MalType* >(list.begin() + 1, list.end());
+                    return new MalList(rest);
+                }
+                else
+                    return CONSTANTS["nil"];
+            } else {
+                auto vec = arg->as_vector()->items();
+                if (vec.size() > 1) {
+                    auto rest = vector < MalType* >(vec.begin() + 1, vec.end());
+                    return new MalVector(rest);
+                }
+                else
+                    return CONSTANTS["nil"];
+            }
+        } else {
+            auto typeExcep = TypeException();
+            typeExcep.errMessage = "'rest' not defined for non-sequential operands.";
+            throw typeExcep;
+        }
+    }
+
     BuiltIns getCoreBuiltins() {
         BuiltIns core;
         core["+"] = add;
@@ -673,6 +742,8 @@ namespace Core {
         core["<="] = lessOrEqual;
         core[">"] = greaterThan;
         core[">="] = greaterOrEqual;
+        core["first"] = sequenceFirst;
+        core["rest"] = sequenceRest;
         return core;
     }
 }
