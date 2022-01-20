@@ -6,6 +6,7 @@
 #include <exception>
 #include <vector>
 #include <optional>
+#include <memory>
 #include "mal_types.hpp"
 #include "env.hpp"
 
@@ -233,24 +234,24 @@ private:
 
 vector < string_view > tokenize(string &input);
 
-optional < MalType* > read_str(string &input, Env);
+optional < MalType * > read_str(string &input, Env);
 
-optional < MalType* > read_form(Reader &reader);
+optional < MalType * > read_form(Reader &reader);
 
-optional < MalType* > read_list(Reader &reader);
+optional < MalType * > read_list(Reader &reader);
 
-optional < MalType* > read_vector(Reader &reader);
+optional < MalType * > read_vector(Reader &reader);
 
-optional < MalType* > read_hashmap(Reader &reader);
+optional < MalType * > read_hashmap(Reader &reader);
 
-optional < MalType* > read_atom(Reader &reader);
+optional < MalType * > read_atom(Reader &reader);
 
-optional < MalType* > read_keyword(Reader &reader);
+optional < MalType * > read_keyword(Reader &reader);
 
-optional < MalType* > read_string(Reader &reader);
+optional < MalType * > read_string(Reader &reader);
 
-optional < MalType* > read_metadata_w_object(Reader &reader);
+optional < MalType * > read_metadata_w_object(Reader &reader);
 
-optional < MalType* > read_quoted_val(Reader &reader);
+optional < MalType * > read_quoted_val(Reader &reader);
 
-optional < MalType* > read_dereferenced_val(Reader &reader);
+optional < MalType * > read_dereferenced_val(Reader &reader);

@@ -4,6 +4,6 @@
 
 using std::string;
 
-string pr_str(MalType* t) {
-    return t->inspect();
+string pr_str(MalType* t, bool readable) {
+    return t->inspect(readable);
 }

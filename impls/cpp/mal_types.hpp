@@ -31,7 +31,8 @@ enum Type {
 class MalType {
 public:
     virtual Type type() = 0;
-    virtual string inspect() = 0;
+    virtual string inspect(bool readably=true) = 0;
+    virtual ~MalType() { }
     MalList* as_list();
     MalVector* as_vector();
     MalHashMap* as_hashmap();
@@ -68,22 +69,31 @@ public:
 
 class MalSequence : public MalType {
 public:
+    MalSequence() { }
+    virtual ~MalSequence() { }
+
     string contents(bool readable=true) {
         string out = "";
         for (int i = 0; stored.size() > i; ++i) {
-            auto item = stored[i];
-            if (item->type() == List || item->type() == Vector) {
-                if (!readable) {
-                    out += item->as_sequence()->contents(readable) + " ";
-                    continue;
-                }
-            }                
-            out += item->inspect();
+            auto item = stored[i];       
+            if ((!readable) && (item->type() == List || item->type() == Vector)) {
+                out += item->as_sequence()->contents(readable);
+                if (i + 1 != stored.size())
+                    out += " ";
+                continue;
+            } 
+            auto nonseq = item->inspect(readable);
+            out += nonseq;
 
             if (i + 1 != stored.size())
                 out += " ";
         }
         return out;
+    }
+    
+    // add new item to list
+    void append(MalType* item) {
+        stored.push_back(item);
     }
 
 protected:
@@ -101,20 +111,15 @@ public:
         return List;
     }
 
-    // add new item to list
-    void append(MalType* item) {
-        stored.push_back(item);
-    }
-
-    string inspect() {
+    string inspect(bool readably=true) {
         string out = "(";
-        out += contents();
+        out += contents(readably);
         out += ')';
 
         return out;
     }
 
-    vector < MalType* > items() {
+    auto items() {
         return stored;
     }
 };
@@ -130,20 +135,15 @@ public:
         return Vector;
     }
 
-    // add new item to list
-    void append(MalType* item) {
-        stored.push_back(item);
-    }
-
-    string inspect() {
+    string inspect(bool readably=true) {
         string out = "[";
-        out += contents();
+        out += contents(readably);
         out += ']';
 
         return out;
     }
 
-    vector < MalType* > items() {
+    auto items() {
         return stored;
     }
 };
@@ -174,11 +174,11 @@ public:
         return hmap;
     }
 
-    string inspect() {
+    string inspect(bool readably=true) {
         string out = "{";
         for (auto item : hmap) {
-            out += item.first->inspect() + " ";
-            out += item.second->inspect() + " ";
+            out += item.first->inspect(readably) + " ";
+            out += item.second->inspect(readably) + " ";
         }
         // overwrite the last append space 
         // only if we have list items
@@ -208,7 +208,7 @@ public:
         return s_str;
     }
 
-    string inspect() {
+    string inspect(bool readably=true) {
         return str();
     }
 
@@ -233,7 +233,7 @@ public:
         return Keyword;
     }
 
-    string inspect() {
+    string inspect(bool readably=true) {
         return ":" + k_str;
     }
 
@@ -243,19 +243,101 @@ private:
 
 class MalString : public MalType {
 public:
-    MalString(string_view str): s_str {str} { }
+    MalString(string_view str): s_str { str } { }
 
     Type type() {
         return String;
     }   
 
     string content() {
-        return s_str.substr(1, s_str.size()-2);
+        if (s_str.size() > 1)
+            return s_str.substr(1, s_str.size()-2);
+        return "";
     }
 
-    string inspect() {
-        return s_str;
+    string inspect(bool readably=true) {
+        return readably ? escape() : unescape(s_str);
     }
+
+    string unescape(string_view s) {
+        if (s.size() == 0)
+            return string(s);
+        auto ns = s;
+        string out = "";
+        for (int i = 0; ns.size() > i; ++i) {
+            char c = ns[i];
+            switch (c) {
+                case '\\': {
+                    char n = ns[++i];
+                    switch (n) {
+                        case '\\':
+                            out += '\\';
+                            break;
+                        case 'n':
+                            out += '\n';
+                            break;
+                        case '"':
+                            out += '"';
+                            break;
+                        default:
+                            out += n;
+                            break;
+                    }
+                    break;
+                }
+                default: {
+                    out += c;
+                }
+            }
+        }
+        return out;
+    }
+
+    string escape() {
+        if (s_str.size() == 0) {
+            return "\"" + s_str + "\"";
+        }
+        // extract string content without the parenthesis
+        auto stringContent = s_str;
+        string finalStr = "";
+        cout << "<< " << stringContent << endl;
+        for (size_t i = 0; i < stringContent.size(); ++i) {
+            char c = stringContent[i];
+            switch(c) {
+                case '\\': {
+                    ++i;
+                    if (i >= stringContent.size()) {
+                        auto r_except = RuntimeException();
+                        r_except.errMessage = "unbalanced";
+                        throw r_except;
+                    }
+                    char next = stringContent[i];
+                    switch (next) {
+                        case 'n':
+                            finalStr += "\\n";
+                            break;
+                        case '\\':
+                            finalStr += "\\\\";
+                            break;
+                        case '"':
+                            finalStr += "\\\"";
+                            break;
+                        default:
+                            finalStr += next;
+                    }
+                    break;
+                }
+                case '"': {
+                    finalStr += "\\\"";
+                    break;
+                }
+                default:    
+                    finalStr += c;
+            }
+        }
+        return "\"" + finalStr + "\"";
+    }
+
 
 private:
     string s_str;
@@ -269,7 +351,7 @@ public:
         return Nil;
     }
 
-    string inspect() {
+    string inspect(bool readably=true) {
         return "nil";
     }
 };
@@ -286,7 +368,7 @@ public:
         return value;
     }
 
-    string inspect() {
+    string inspect(bool readably=true) {
         return value ? "true" : "false";
     }
 
@@ -306,7 +388,7 @@ public:
         return value;
     }
 
-    string inspect() {
+    string inspect(bool readably=true) {
         return to_string(value);
     }
 
@@ -334,7 +416,7 @@ public:
         return m_fn;
     }
 
-    string inspect() {
+    string inspect(bool readably=true) {
         return "{function " + nameTag + "}";
     }
 

@@ -22,7 +22,7 @@ vector < string_view > tokenize(string &input) {
     return tokens;
 }
 
-optional < MalType* > read_str(string &input, Env global) {
+optional < MalType * > read_str(string &input, Env global) {
     vector < string_view > tokens = tokenize(input);
     glob = global;
     // pass vector of all tokens to reader
@@ -30,7 +30,7 @@ optional < MalType* > read_str(string &input, Env global) {
     return read_form(reader);
 }
 
-optional < MalType* > read_form(Reader &reader) {
+optional < MalType * > read_form(Reader &reader) {
     auto token = reader.peek();
     
     // No more token?
@@ -61,11 +61,11 @@ optional < MalType* > read_form(Reader &reader) {
     }
 }
 
-optional < MalType* > read_list(Reader &reader) {
+optional < MalType * > read_list(Reader &reader) {
     // skip over (
     reader.next();
 
-    MalList* list = new MalList();
+    auto list = new MalList();
     while(auto token = reader.peek()) {
         // end of a list
         if (token.value() == ")") {
@@ -77,8 +77,9 @@ optional < MalType* > read_list(Reader &reader) {
 
         auto item = read_form(reader);
         // not a null optional value
-        if (item)
+        if (item) {
             list->append(item.value());
+        }
     }
     // throw reader exception
     auto r_except = ReaderException();
@@ -86,11 +87,11 @@ optional < MalType* > read_list(Reader &reader) {
     throw r_except;
 }
 
-optional < MalType* > read_vector(Reader &reader) {
+optional < MalType * > read_vector(Reader &reader) {
     // skip over (
     reader.next();
 
-    MalVector* vec = new MalVector();
+    auto vec = new MalVector;
     while(auto token = reader.peek()) {
         // end of a list
         if (token.value() == "]") {
@@ -101,8 +102,9 @@ optional < MalType* > read_vector(Reader &reader) {
 
         auto item = read_form(reader);
         // not a null optional value
-        if (item)
+        if (item) {
             vec->append(item.value());
+        }
     }
     // throw reader exception
     auto r_except = ReaderException();
@@ -110,7 +112,7 @@ optional < MalType* > read_vector(Reader &reader) {
     throw r_except;
 }
 
-optional < MalType* > read_hashmap(Reader &reader) {
+optional < MalType * > read_hashmap(Reader &reader) {
     // skip over {
     auto lbracket = reader.next().value();
 
@@ -124,7 +126,7 @@ optional < MalType* > read_hashmap(Reader &reader) {
         throw r_except;
     }
 
-    MalHashMap* hmap = new MalHashMap();
+    auto hmap = new MalHashMap;
     while(auto token = reader.peek()) {
         if (token.value() == "}") {
             reader.next();
@@ -161,12 +163,18 @@ bool isBooleanToken(string_view token) {
 bool isNumberToken(string_view token) {
     // isdigit returns 0 when i is not a digit
     // or is a negative number
-    if (isdigit(token[0]) || (token[0] == '-' && token.size() > 1))
+    if (isdigit(token[0]) || (token[0] == '-' && token.size() > 1)) {
+        for (int i = 1; token.size() > i; ++i) {
+            auto c = token[i];
+            if (!isdigit(c))
+                return false;
+        }
         return true;
+    }
     return false;
 }
 
-optional < MalType* > read_atom(Reader &reader) {
+optional < MalType * > read_atom(Reader &reader) {
     auto token = *reader.peek();
 
     char firstChar = token[0];
@@ -230,19 +238,21 @@ optional < MalType* > read_atom(Reader &reader) {
                     n_excep.errMessage = "unknown number conversion error :(";
                     throw n_excep;
                 }
-            } else
-                return new MalSymbol(*reader.next());
+            } else {
+                // determine is we have a - sign before our symbol
+                return new MalSymbol(reader.next().value());
+            }
         }
     }
 }
 
-optional < MalType* > read_keyword(Reader &reader) {
+optional < MalType * > read_keyword(Reader &reader) {
     // skip over :
     reader.next().value();
     return new MalKeyword(reader.next().value());
 }
 
-optional < MalType* > read_string(Reader &reader) {
+optional < MalType * > read_string(Reader &reader) {
     auto token = reader.next().value();
 
     if (token.length() < 2) {
@@ -258,47 +268,15 @@ optional < MalType* > read_string(Reader &reader) {
         throw r_except;
     } 
     
-    if (token.length() == 0) { // empty string
-        return new MalString(token);
+    if (token.length() == 2) { // empty string
+        // cout << token << endl;
+        return new MalString("");
     }
 
-    // extract string content without the parenthesis
-    auto stringContent = token.substr(1, token.length() -2);
-    string finalStr = "";
-    for (size_t i = 0; i < stringContent.size(); ++i) {
-        char c = stringContent[i];
-        switch(c) {
-            case '\\': {
-                ++i;
-                if (i >= stringContent.size()) {
-                    auto r_except = ReaderException();
-                    r_except.errMessage = "unbalanced";
-                    throw r_except;
-                }
-                char next = stringContent[i];
-                switch (next) {
-                    case 'n':
-                        finalStr += "\\n";
-                        break;
-                    case '\\':
-                        finalStr += "\\\\";
-                        break;
-                    case '"':
-                        finalStr += "\\\"";
-                        break;
-                    default:
-                        finalStr += next;
-                }
-                break;
-            }
-            default:    
-                finalStr += c;
-        }
-    }
-    return new MalString("\"" + finalStr + "\"");
+    return new MalString(token.substr(1, token.size() - 2));
 }
 
-optional < MalType* > read_quoted_val(Reader &reader) {
+optional < MalType * > read_quoted_val(Reader &reader) {
     string_view token = reader.peek().value();
 
     char firstChar = token[0];
@@ -348,18 +326,20 @@ optional < MalType* > read_quoted_val(Reader &reader) {
     }
 }
 
-optional < MalType* > read_dereferenced_val(Reader &reader) {
+optional < MalType * > read_dereferenced_val(Reader &reader) {
     reader.next();
     auto deref_list = new MalList();
-    deref_list->append(new MalSymbol("deref"));
+    auto sym = new MalSymbol("deref");
+    deref_list->append(sym);
     deref_list->append(read_form(reader).value());
     return deref_list;
 }
 
-optional < MalType* > read_metadata_w_object(Reader &reader) {
+optional < MalType * > read_metadata_w_object(Reader &reader) {
     reader.next();
     auto meta_list = new MalList();
-    meta_list->append(new MalSymbol("with-meta"));
+    auto sym = new MalSymbol("with-meta");
+    meta_list->append(sym);
     auto metadata_hmap = read_hashmap(reader).value();
     auto obj = read_form(reader).value();
     meta_list->append(obj); // read metadata

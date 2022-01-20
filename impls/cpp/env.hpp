@@ -7,33 +7,32 @@ using namespace std;
 
 // allows us store all types of MalTypes
 // used in step 2
-using Env = map < string, MalType* >;
+using Env = map < string, MalType * >;
 
 // used in step 3 and further
 class Environ {
 public:
     Environ(Environ* parent) : enclosing {parent} { }
 
-    Environ(Environ* parent, vector < MalType* > binds, vector < MalType* > exprs) 
+    Environ(Environ* parent, vector < MalType * > params, vector < MalType * > args) 
     : enclosing {parent} {
-        if (binds.size() != exprs.size()) {
+        if (params.size() != args.size()) {
             auto runExcep = RuntimeException();
             runExcep.errMessage = "mismatched argument size. ";
-            runExcep.errMessage += "expected " + to_string(binds.size()) + " arguments.";
+            runExcep.errMessage += "expected " + to_string(params.size()) + " arguments.";
             throw runExcep;
         }
 
-        for (int i = 0; binds.size() > i; ++i) {
-            // cout << binds[i]->inspect() << " " << exprs[i]->inspect() << endl;
-            set(binds[i], exprs[i]);
+        for (int i = 0; params.size() > i; ++i) {
+            set(params[i], args[i]);
         }
     }
     
-    void set(MalType* id, MalType* val) {
+    void set(MalType * id, MalType * val) {
         stored[id->inspect()] = val;
     }
 
-    MalType* find(MalType* id) {
+    MalType * find(MalType * id) {
         auto searched = stored.find(id->inspect());
 
         if (searched == stored.end()) {
@@ -47,7 +46,7 @@ public:
         }
     }
 
-    MalType* get(MalType* id) {
+    MalType * get(MalType * id) {
         auto found = find(id);
 
         if (found != NULL) {
@@ -60,6 +59,6 @@ public:
     }
 
 private:
-    map < string, MalType* > stored;
+    map < string, MalType * > stored;
     Environ* enclosing;
 };

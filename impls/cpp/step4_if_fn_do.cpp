@@ -1,6 +1,7 @@
 #include <string>
 #include <string_view>
 #include <iostream>
+#include <memory>
 #include "../linenoise.hpp"
 #include "reader.hpp"
 #include "printer.hpp"
@@ -24,34 +25,43 @@ auto FALSE = new MalBoolean(false);
 auto VARIADIC = new MalSymbol("&");
 auto SPREAD = new MalSpreader();
 
-MalType* READ(string input) {
-    return *read_str(input, CONSTANTS);
+MalType * READ(string input) {
+    auto r = *read_str(input, CONSTANTS);
+    return r;
 }
 
-MalType* EVAL(MalType*, Environ* curEnv);
-MalType* eval_ast(MalType* ast, Environ* curEnv) {
+MalType * EVAL(MalType *, Environ* curEnv);
+MalType * eval_ast(MalType * ast, Environ* curEnv) {
     switch (ast->type()) {
         case Symbol: {
-            auto symbol = ast->as_symbol();
-            // if we have encountered a spread, just return it
-            return curEnv->get(symbol);
+            // check if we have a negated symbol
+            // if we do, call MAL's - on it
+            auto sym = ast->as_symbol();
+            auto symstr = sym->str();
+            if (symstr[0] == '-' && symstr.size() > 1) {
+                auto actual = new MalSymbol(symstr.substr(1, symstr.size()));
+                MalType* arg[1] { curEnv->get(actual) };
+                return Core::sub(arg, 1);
+            } else {
+                return curEnv->get(ast->as_symbol());
+            }
         }
         case List: {
-            auto results = new MalList();
-            for (MalType* i : ast->as_list()->items()) {
+            auto results = new MalList;
+            for (auto i : ast->as_list()->items()) {
                 results->append(EVAL(i, curEnv));
             }
             return results;
         }
         case Vector: {
-            auto results = new MalVector();
-            for (MalType* i : ast->as_vector()->items()) {
+            auto results = new MalVector;
+            for (auto i : ast->as_vector()->items()) {
                 results->append(EVAL(i, curEnv));
             }
             return results;
         }
         case HashMap: {
-            auto hmap = new MalHashMap();
+            auto hmap = new MalHashMap;
             for (auto pair : ast->as_hashmap()->items()) {
                 hmap->set(pair.first, EVAL(pair.second, curEnv));
             }
@@ -63,8 +73,8 @@ MalType* eval_ast(MalType* ast, Environ* curEnv) {
     return ast;
 }
 
-MalType* eval_let(vector < MalType* >, MalType*, Environ*);
-MalType* EVAL(MalType* ast, Environ* curEnv) {
+MalType * eval_let(vector < MalType * >, MalType *, Environ*);
+MalType * EVAL(MalType * ast, Environ* curEnv) {
     // not a list, call eval_ast and return its result
     if (ast->type() != List) {
         return eval_ast(ast, curEnv);
@@ -134,7 +144,7 @@ MalType* EVAL(MalType* ast, Environ* curEnv) {
                     throw runExcep;
                 }
             } else if (symstr == "do") { // do special form
-                MalType* _AST = NIL;
+                MalType * _AST;
                 for (int i = 1; rawlist.size() > i; ++i) {
                     _AST = rawlist[i];
                     if(i == rawlist.size() - 1) { // final expr in list
@@ -181,7 +191,7 @@ MalType* EVAL(MalType* ast, Environ* curEnv) {
                 // get bindings and let* body
                 auto bindings = rawlist[1];
                 auto body = rawlist[2];
-                vector < MalType* > fn_params;
+                vector < MalType * > fn_params;
                 // make sure bindings are in a list or vector
                 if (bindings->type() == List) {
                     fn_params = bindings->as_list()->items();
@@ -195,7 +205,7 @@ MalType* EVAL(MalType* ast, Environ* curEnv) {
 
                 bool variadic = false;
                 size_t variadic_index = -1;
-                vector < MalType* > var_params;
+                vector < MalType * > var_params;
                 // check that passed params are either Keywords/Symbols
                 for (int i = 0; fn_params.size() > i; ++i) {
                     auto item = fn_params[i];
@@ -219,8 +229,8 @@ MalType* EVAL(MalType* ast, Environ* curEnv) {
 
                 // why does this work????
                 auto closure = [&, variadic,  variadic_index, curEnv, var_params, body]
-                                (MalType** args, size_t argc) {
-                    auto fn_args = vector < MalType* >(args, args + argc);
+                                (MalType ** args, size_t argc) {
+                    auto fn_args = vector < MalType * >(args, args + argc);
                     Environ* fnEnv = NULL;
 
                     // handle arguments properly
@@ -236,8 +246,8 @@ MalType* EVAL(MalType* ast, Environ* curEnv) {
                             runExcep.errMessage = "variadic function requires at least " + to_string(var_params.size() - 1) + " arguments.";
                             throw runExcep;
                         }
-                        auto v_arg = new MalList();
-                        vector < MalType* > var_args;
+                        auto v_arg = new MalList;
+                        vector < MalType * > var_args;
                         for (int i = 0; var_params.size() - 1 > i; ++i) {
                             var_args.push_back(fn_args[i]);
                         }
@@ -267,7 +277,7 @@ MalType* EVAL(MalType* ast, Environ* curEnv) {
         // process args to find any spread syntax
         auto args = list.data() + 1; // start after fn item
         auto argc = list.size() - 1; // count args - fn item
-        vector < MalType* > arguments;
+        vector < MalType * > arguments;
         for (int i = 0; argc > i; ++i) {
             auto item = args[i];
             // we have found an expand in args, so we need to:
@@ -291,7 +301,7 @@ MalType* EVAL(MalType* ast, Environ* curEnv) {
                     e.errMessage = "'...' must be followed by Sequential type (List|Vector).";
                     throw e;
                 }
-                auto items = vector < MalType* >();
+                auto items = vector < MalType * >();
                 switch(a->type()) {
                     case List: {
                         items = a->as_list()->items();
@@ -324,7 +334,7 @@ MalType* EVAL(MalType* ast, Environ* curEnv) {
     }
 }
 
-MalType* eval_let(vector < MalType* > bindables, MalType* body, Environ* letEnv) {
+MalType * eval_let(vector < MalType * > bindables, MalType * body, Environ* letEnv) {
     // make sure list has even number of elements
     if (bindables.size() % 2 != 0) {
         auto runExcep = RuntimeException();
@@ -342,7 +352,7 @@ MalType* eval_let(vector < MalType* > bindables, MalType* body, Environ* letEnv)
     return EVAL(body, letEnv);
 }
  
-string PRINT(MalType* input) {
+string PRINT(MalType * input) {
     return pr_str(input);
 }
 
@@ -362,7 +372,9 @@ void loop() {
     CONSTANTS["..."] = SPREAD;
     
     for (auto fn : Core::getCoreBuiltins()) {
-        TOP_LEVEL->set(new MalSymbol(fn.first), new MalFunc(fn.second, fn.first));
+        auto name = new MalSymbol(fn.first);
+        auto builtin = new MalFunc(fn.second, fn.first);
+        TOP_LEVEL->set(name, builtin);
     }
     
     // create not, and execute it to bind into Env

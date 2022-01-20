@@ -5,6 +5,7 @@
 #include "reader.hpp"
 #include "printer.hpp"
 #include "mal_types.hpp"
+#include "core.hpp"
 
 using std::string;
 using std::getline;
@@ -12,8 +13,14 @@ using std::cout;
 using std::cin;
 using std::endl;
 
+auto NIL = new MalNil();
+auto TRUE = new MalBoolean(true);
+auto FALSE = new MalBoolean(false);
+auto VARIADIC = new MalSymbol("&");
+auto SPREAD = new MalSpreader();
+
 MalType* READ(string input) {
-    return *read_str(input);
+    return *read_str(input, CONSTANTS);
 }
 
 MalType* EVAL(MalType* input) {
@@ -33,6 +40,11 @@ void loop() {
     linenoise::LoadHistory(historyPath.c_str());
 
     string input = "";
+    CONSTANTS["nil"] = NIL;
+    CONSTANTS["true"] = TRUE;
+    CONSTANTS["false"] = FALSE;
+    CONSTANTS["&"] = VARIADIC;
+    CONSTANTS["..."] = SPREAD;
 
     while(true) {   
         bool quit = linenoise::Readline("user> ", input);
@@ -49,6 +61,14 @@ void loop() {
             linenoise::AddHistory(input.c_str());
             continue;
         } catch (CommentException &c) {
+            linenoise::AddHistory(input.c_str());
+            continue;
+        } catch (RuntimeException &r) {
+            cerr << r.what() << endl;
+            linenoise::AddHistory(input.c_str());
+            continue;
+        } catch (TypeException &t) {
+            cerr << t.what() << endl;
             linenoise::AddHistory(input.c_str());
             continue;
         }

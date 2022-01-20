@@ -73,7 +73,7 @@ namespace Core {
     }
 
     MalType* sub(MalType** args, size_t argc) {
-        if (argc < 2) {
+        if (argc < 1) {
             auto runExcep = RuntimeException();
             runExcep.errMessage = "'-' requires at least 2 arguments.";
             throw runExcep;
@@ -87,14 +87,18 @@ namespace Core {
 
         if (calcType == Int) {
             long diff = f->as_int()->to_long();
-            for (int i = 1; argc > i; ++i) {
-                auto rhs = args[i];
-                if (typeCheck(rhs->type(), Int)) {
-                    diff -= rhs->as_int()->to_long();
-                } else {
-                    auto typeExcep = TypeException();
-                    typeExcep.errMessage = "'-' not defined for operands of varying types.";
-                    throw typeExcep;
+            if (argc == 1) {
+                diff = -diff;
+            } else {
+                for (int i = 1; argc > i; ++i) {
+                    auto rhs = args[i];
+                    if (typeCheck(rhs->type(), Int)) {
+                        diff -= rhs->as_int()->to_long();
+                    } else {
+                        auto typeExcep = TypeException();
+                        typeExcep.errMessage = "'-' not defined for operands of varying types.";
+                        throw typeExcep;
+                    }
                 }
             }
             return new MalInt(diff);
@@ -340,6 +344,8 @@ namespace Core {
         } else if (item->type() == String) {
             auto str = item->as_string()->content();
             count = str.size();
+        } else if (item->type() == Nil) {
+            count = 0;
         } else {
             count = 1;
         }
@@ -354,6 +360,7 @@ namespace Core {
             if (typeChecksOneOf(l->type(), List, Vector) && typeChecksOneOf(r->type(), List, Vector)) {
                 auto l_con = l->as_sequence()->contents(false);
                 auto r_con = r->as_sequence()->contents(false);
+                // cout << l_con << " == " << r_con << endl;
                 if (l_con != r_con)
                     return false;
             } else {
@@ -416,6 +423,8 @@ namespace Core {
                 auto rhs = r->as_vector();
                 if (lhs->items().size() != rhs->items().size()) {
                     equal = false;
+                } else if (lhs->items().size() == 0 && rhs->items().size() == 0) {
+                    equal = true;
                 } else {
                     auto litems = lhs->items();
                     auto ritems = rhs->items();
@@ -427,6 +436,8 @@ namespace Core {
 
                 if (lhs->items().size() != rhs->items().size()) {
                     equal = false;
+                } else if (lhs->items().size() == 0 && rhs->items().size() == 0) {
+                    equal = true;
                 } else {
                     auto litems = lhs->items();
                     auto ritems = rhs->items();
@@ -602,25 +613,7 @@ namespace Core {
         }
     }
 
-    MalType* str(MalType** args, size_t argc) { 
-        // calls pr_str(true) on all args, concatenates with " " and then returns it
-        string out = "";
-        for (int i = 0; argc > i; ++i) {
-            auto content = pr_str(args[i]);
-            if (content[0] == '"' && content[content.size()-1] == '"') {
-                out += content.substr(1, content.size()-2);
-            } else 
-                out += content;
-            
-            if (i < argc && i + 1 != argc) {
-                out += " ";
-            }
-        }
-        return new MalString(out);
-    }
-
-    MalType* str_readable(MalType** args, size_t argc) { 
-        // calls pr_str(false) on all args, concatenates with " " and then returns it
+    MalType* pr__str(MalType** args, size_t argc) { 
         string out = "";
         for (int i = 0; argc > i; ++i) {
             out += pr_str(args[i]);
@@ -631,7 +624,17 @@ namespace Core {
         return new MalString(out);
     }
 
-    // pr_str(true)
+    MalType* str(MalType** args, size_t argc) { 
+        string out = "";
+        for (int i = 0; argc > i; ++i) {
+            out += pr_str(args[i], false);
+            if (i < argc && i + 1 != argc) {
+                out += "";
+            }
+        }
+        return new MalString(out);
+    }
+
     MalType* prn(MalType** args, size_t argc) {
         for (int i = 0; argc > i; ++i) {
             cout << pr_str(args[i]);
@@ -639,19 +642,18 @@ namespace Core {
                 cout << " ";
             }
         }
-        cout << endl;
+        cout << "\n";
         return CONSTANTS["nil"];
     }
 
-    // pr_str(false)
     MalType* println(MalType** args, size_t argc) { 
         for (int i = 0; argc > i; ++i) {
-            cout << pr_str(args[i]);
+            cout << pr_str(args[i], false);
             if (i < argc && i + 1 != argc) {
                 cout << " ";
             }
         }
-        cout << endl;
+        cout << "\n";
         return CONSTANTS["nil"];
     }
 
@@ -728,10 +730,10 @@ namespace Core {
         core["or"] = or_;
         core["and"] = and_;
         core["**"] = exponent;
+        core["pr-str"] = pr__str;
+        core["str"] = str;
         core["prn"] = prn;
         core["println"] = println;
-        core["str"] = str;
-        core["pr-str"] = str_readable;
         core["list"] = list;
         core["list?"] = isList;
         core["vector?"] = isVector;
