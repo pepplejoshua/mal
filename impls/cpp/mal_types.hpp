@@ -96,6 +96,10 @@ public:
         stored.push_back(item);
     }
 
+    auto items() {
+        return stored;
+    }
+
 protected:
     vector < MalType* > stored;
 };
@@ -118,10 +122,6 @@ public:
 
         return out;
     }
-
-    auto items() {
-        return stored;
-    }
 };
 
 class MalVector : public MalSequence {
@@ -141,10 +141,6 @@ public:
         out += ']';
 
         return out;
-    }
-
-    auto items() {
-        return stored;
     }
 };
 
@@ -300,7 +296,6 @@ public:
         // extract string content without the parenthesis
         auto stringContent = s_str;
         string finalStr = "";
-        cout << "<< " << stringContent << endl;
         for (size_t i = 0; i < stringContent.size(); ++i) {
             char c = stringContent[i];
             switch(c) {

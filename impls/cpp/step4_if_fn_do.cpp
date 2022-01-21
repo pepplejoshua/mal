@@ -43,7 +43,19 @@ MalType * eval_ast(MalType * ast, Environ* curEnv) {
                 MalType* arg[1] { curEnv->get(actual) };
                 return Core::sub(arg, 1);
             } else {
-                return curEnv->get(ast->as_symbol());
+                return curEnv->get(sym);
+            }
+        }
+        case Keyword: {
+            // similar to Symbol
+            auto kw = ast->as_keyword();
+            auto kwstr = kw->inspect();
+            if (kwstr[0] == '-' && kwstr.size() > 1) {
+                auto actual = new MalSymbol(kwstr.substr(1, kwstr.size()));
+                MalType* arg[1] { curEnv->get(actual) };
+                return Core::sub(arg, 1);
+            } else {
+                return curEnv->get(kw);
             }
         }
         case List: {
@@ -96,28 +108,143 @@ MalType * EVAL(MalType * ast, Environ* curEnv) {
                     runExcep.errMessage = "def! form requires 2 arguments (symbol and its value).";
                     throw runExcep;
                 }
-                // what is we allow multiple bindings in one
-                // def statement?
-                // it would look like:
-                // (def! [a b c] value), where value is:
-                // a list and exactly 3 items long, e.g: [3 2 1]
-                // a = 3, b = 2, c = 1
-                // or
-                // (def! [a b & c] value), where value is:
-                // a list and at least 2 items long, e.g: [3 2]
-                // a = 3, b = 2, c = ()
+            
                 auto key = rawlist[1];
                 auto val = rawlist[2];
                 auto e_val = EVAL(val, curEnv);
-                // set function's name to key's inspect
-                if (e_val->type() == Func) {
-                    auto fn = e_val->as_func();
-                    // currently unnamed
-                    if (fn->name() == "<~lambda~>") {
-                        fn->setName(key->inspect());
+                // since def! form looks like: (def! a b)
+                // where a is either 
+                // 1. a sequential(List, Vector), which would mean b would also have to be
+                // a spreadable sequential as well (similar to function definitions) and we will bind them in order
+                // e.g:
+                // (def! [a b] [1 2]) -> a is 1 and b is 2, 
+                //       or in a more specialized case, we bind with variadic syntax 
+                // e.g:
+                // (def! [a b c & d] [1 2 3 4 5 6]) -> a is 1, b is 2, c is 3 and d is [4 5 6]
+                // or u can provide arguments that match the number of non-variadic parameters
+                // (def! [a b & c] [1 2])
+                // 2. a scalar, so we bind whatever b is to it
+                // e.g:
+                // (def! a [1 2 3]) or (def! a true) -> a is [1 2 3] or a is true
+                
+                // if we are not handling multiple bindings, 
+                if (!Core::typeChecksOneOf(key->type(), Vector, List)) {
+                    // set function's name to key's inspect
+                    if (e_val->type() == Func) {
+                        auto fn = e_val->as_func();
+                        // currently unnamed
+                        if (fn->name() == "<~lambda~>") {
+                            fn->setName(key->inspect());
+                        }
+                    }
+                    curEnv->set(key, e_val);
+                } else { // we are handling multiple bindings.
+                    // check if e_val (result of evaluating binding value, val) is a sequence 
+                    // that we can spread across parameters
+                    if (!Core::typeChecksOneOf(e_val->type(), List, Vector)) {
+                        auto e = TypeException();
+                        e.errMessage = "'" + val->inspect() + "' is not a sequence that can be used in multiple bindings.";
+                        throw e;
+                    } else {
+                        // check if we are looking at multiple bindings with a variadic end
+                        bool variadic = false;
+                        auto variadic_index = -1;
+                        
+                        // check that keys are either Symbols or Keywords
+                        // and also look out for variadic binding, ensure it is done properly
+                        auto keys = key->as_sequence()->items();
+                        vector < MalType * > bind_keys;
+                        // used to catch duplicated parameter names
+                        // e.g (def! [a b b] ... ) is erroneous
+                        vector < string > key_insp;
+                        for (int i = 0; keys.size() > i; ++i) {
+                            auto item = keys[i];
+                            auto found = find(key_insp.begin(), key_insp.end(), item->inspect());
+                            // duplicate check
+                            if (found != key_insp.end()) {
+                                auto runExcep = RuntimeException();
+                                runExcep.errMessage = "def! parameters have to be unique (";
+                                runExcep.errMessage += item->inspect() + " has multiple references).";
+                                throw runExcep;
+                            }
+                            // type check
+                            if (!Core::typeChecksOneOf(item->type(), Symbol, Keyword)) {
+                                auto runExcep = RuntimeException();
+                                runExcep.errMessage = "def! parameters have to be bindable Symbols/Keywords. ";
+                                runExcep.errMessage += "'" + item->inspect() + "' is not.";
+                                throw runExcep;
+                            }
+                            // variadic check
+                            if (item->inspect() == "&") {
+                                if (i + 2 != keys.size()) {
+                                    auto runExcep = RuntimeException();
+                                    runExcep.errMessage = "variadic binding requires 1 variadic parameter at end of parameters list.";
+                                    throw runExcep;
+                                } 
+
+                                // if we have no non variadic key, this is a somewhat useless operation
+                                // e.g 
+                                // (def! [& a] [1 2 3]) -> a is (1 2 3), which is not much too different from:
+                                // (def! a [1 2 3]) -> a is [1 2 3], which is perhaps more straightforward 
+                                // and takes less processing so suggest a scalar binding 
+                                if (i == 0) { 
+                                    auto variad_k = keys[i+1];
+                                    auto e = RuntimeException();
+                                    e.errMessage = "def! allows multiple bindings with a variadic key\n";
+                                    e.errMessage += "only if there is at least some non-variadic key occuring before it.\n";
+                                    e.errMessage += "using (def! " + variad_k->inspect() + " " + val->inspect() + ") ";
+                                    e.errMessage += "has a similar effect, only differing in the sequential type\n";
+                                    e.errMessage += "that " + variad_k->inspect() + " is set to.";
+                                    throw e;
+                                }
+                                // cout << "variad! -> " << item->inspect() << " at " + to_string(i) <<  endl;
+                                variadic = true;
+                                variadic_index = i;
+                                continue;
+                            }
+                            // cout << "non_variad -> " << item->inspect() << endl;
+                            bind_keys.push_back(item);
+                            key_insp.push_back(item->inspect());
+                        }
+
+                        auto bind_args = e_val->as_sequence()->items();
+                        if (variadic) {
+                            int nonVariadLength = bind_keys.size() - 1;
+                            // make sure we have enough items to fill the non-variadic part of bindings
+                            // so value args should have at least keys.size() - 1 values
+                            if (bind_args.size() < nonVariadLength) {
+                                auto runExcep = RuntimeException();
+                                runExcep.errMessage = "variadic binding requires at least " + to_string(nonVariadLength) + " arguments in value sequence.";
+                                throw runExcep;
+                            }
+                            // define non-variadic keys
+                            for (int i = 0; nonVariadLength > i; ++i) {
+                                curEnv->set(bind_keys[i], bind_args[i]);
+                            }
+                            // copy the rest of arguments from value sequence into a MalList
+                            auto last_variad = new MalList;
+                            for (int i = nonVariadLength; bind_args.size() > i; ++i) {
+                                last_variad->append(bind_args[i]);
+                            }
+
+                            // then set the variad key to this variad arguements list
+                            auto variad_k = keys[variadic_index+1];
+                            curEnv->set(variad_k, last_variad);
+                        } else {
+                            // make sure we have enough arguments
+                            if (bind_keys.size() != bind_args.size()) {
+                                auto e = RuntimeException();
+                                e.errMessage = "mismatched key to value size. expected ";
+                                e.errMessage += to_string(bind_keys.size()) + " items in value sequence, got ";
+                                e.errMessage += to_string(bind_args.size()) + " items.";
+                                throw e;
+                            }    
+                            for (int i = 0; bind_keys.size() > i; ++i) {
+                                curEnv->set(bind_keys[i], bind_args[i]);
+                            }
+                        }
                     }
                 }
-                curEnv->set(key, e_val);
                 return e_val;
             } else if (symstr == "let*") {
                 // make sure it has 3 parameters
@@ -193,10 +320,8 @@ MalType * EVAL(MalType * ast, Environ* curEnv) {
                 auto body = rawlist[2];
                 vector < MalType * > fn_params;
                 // make sure bindings are in a list or vector
-                if (bindings->type() == List) {
-                    fn_params = bindings->as_list()->items();
-                } else if (bindings->type() == Vector) {
-                    fn_params = bindings->as_vector()->items();
+                if (Core::typeChecksOneOf(bindings->type(), List, Vector)) {
+                    fn_params = bindings->as_sequence()->items();
                 } else {
                     auto runExcep = RuntimeException();
                     runExcep.errMessage = "fn* form requires 2nd argument to be a sequence of bindable Symbols.";
@@ -204,20 +329,35 @@ MalType * EVAL(MalType * ast, Environ* curEnv) {
                 }
 
                 bool variadic = false;
-                size_t variadic_index = -1;
+                auto variadic_index = -1;
                 vector < MalType * > var_params;
+                // used to catch duplicated parameter
+                // e.g: (fn* [a b a] ... ) is erroneous
+                vector < string > params_insp; 
                 // check that passed params are either Keywords/Symbols
+                // and also look out for variadic binding, ensure it is done properly
                 for (int i = 0; fn_params.size() > i; ++i) {
                     auto item = fn_params[i];
-                    if (item->type() != Symbol) {
+                    auto found = find(params_insp.begin(), params_insp.end(), item->inspect());
+                    // duplicate check
+                    if (found != params_insp.end()) {
                         auto runExcep = RuntimeException();
-                        runExcep.errMessage = "fn* parameters have to be bindable Symbols.";
+                        runExcep.errMessage = "fn* parameters have to be unique (";
+                        runExcep.errMessage += item->inspect() + " has multiple references).";
                         throw runExcep;
                     }
+                    // type check
+                    if (!Core::typeChecksOneOf(item->type(), Symbol, Keyword)) {
+                        auto runExcep = RuntimeException();
+                        runExcep.errMessage = "fn* parameters have to be bindable Symbols/Keywords. ";
+                        runExcep.errMessage += "'" + item->inspect() + "' is not.";
+                        throw runExcep;
+                    }
+                    // variadic check
                     if (item->inspect() == "&") {
                         if (i + 2 != fn_params.size()) {
                             auto runExcep = RuntimeException();
-                            runExcep.errMessage = "variadic function requires 1 variadic parameter.";
+                            runExcep.errMessage = "variadic function requires 1 variadic parameter at end of parameters list.";
                             throw runExcep;
                         }
                         variadic = true;
@@ -225,6 +365,7 @@ MalType * EVAL(MalType * ast, Environ* curEnv) {
                         continue;
                     }
                     var_params.push_back(item);
+                    params_insp.push_back(item->inspect());
                 }
 
                 // why does this work????
