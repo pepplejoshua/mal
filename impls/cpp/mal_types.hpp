@@ -6,9 +6,11 @@
 #include <string_view>
 #include <functional>
 #include <map>
+// #include "env.hpp"
 
 using namespace std;
 
+class Environ;
 class MalList;
 class MalVector;
 class MalHashMap;
@@ -19,13 +21,14 @@ class MalNil;
 class MalBoolean;
 class MalInt;
 class MalFunc;
+class MalTCOptFunc;
 class MalSequence;
 class MalSpreader;
 
 enum Type {
     List, Vector, HashMap, Symbol,
     Keyword, String, Nil, Boolean, Int,
-    Func, Seq, Spreader
+    Func, Seq, Spreader, TCOptFunc
 };
 
 class MalType {
@@ -45,6 +48,7 @@ public:
     MalFunc* as_func();
     MalSequence* as_sequence();
     MalSpreader* as_spreader();
+    MalTCOptFunc* as_tcoptfunc();
 };
 
 class TypeException : exception {
@@ -426,4 +430,52 @@ public:
 private:
     Function m_fn { NULL };
     string nameTag;
+};
+
+class MalTCOptFunc : public MalType {
+public:
+    MalTCOptFunc(MalType* body, vector < MalType* > pars, 
+                 Environ* e, MalFunc* fn, bool variadic=false) 
+    { 
+        astBody = body;
+        parameters = pars;
+        envAtTimeOf = e;
+        actualFn = fn;
+        isVariadic = variadic;
+    }
+
+    Type type() {
+        return TCOptFunc;
+    }
+
+    string inspect(bool readably=true) {
+        return "{TCOptFunction " + actualFn->name() + "}";
+    }
+
+    auto getParameters() {
+        return parameters;
+    }
+
+    auto getEnviron() {
+        return envAtTimeOf;
+    }
+
+    auto getBody() {
+        return astBody;
+    }
+
+    auto getMalFunc() {
+        return actualFn;
+    }
+
+    bool isVariad() {
+        return isVariadic;
+    }
+
+private:
+    MalType* astBody;
+    vector < MalType* > parameters;
+    Environ* envAtTimeOf;
+    MalFunc* actualFn;
+    bool isVariadic;
 };

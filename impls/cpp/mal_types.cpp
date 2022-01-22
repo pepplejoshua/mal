@@ -59,3 +59,8 @@
     assert(type() == Spreader);
     return static_cast<MalSpreader *>(this);
 }
+
+MalTCOptFunc* MalType::as_tcoptfunc() {
+    assert(type() == TCOptFunc);
+    return static_cast<MalTCOptFunc *>(this);
+}
