@@ -24,6 +24,7 @@ auto TRUE = new MalBoolean(true);
 auto FALSE = new MalBoolean(false);
 auto VARIADIC = new MalSymbol("&");
 auto SPREAD = new MalSpreader();
+auto NEWLINE = new MalString("\n");
 
 MalType * READ(string input) {
     auto r = *read_str(input, CONSTANTS);
@@ -591,6 +592,7 @@ void loop() {
     CONSTANTS["false"] = FALSE;
     CONSTANTS["&"] = VARIADIC;
     CONSTANTS["..."] = SPREAD;
+    CONSTANTS["newline"] = NEWLINE;
     
     for (auto fn : Core::getCoreBuiltins()) {
         auto name = new MalSymbol(fn.first);

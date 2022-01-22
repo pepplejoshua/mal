@@ -11,8 +11,10 @@
 using namespace std;
 
 class Environ;
+class MalSequence;
 class MalList;
 class MalVector;
+class MalPair;
 class MalHashMap;
 class MalSymbol;
 class MalKeyword;
@@ -22,11 +24,10 @@ class MalBoolean;
 class MalInt;
 class MalFunc;
 class MalTCOptFunc;
-class MalSequence;
 class MalSpreader;
 
 enum Type {
-    List, Vector, HashMap, Symbol,
+    List, Vector, Pair, HashMap, Symbol,
     Keyword, String, Nil, Boolean, Int,
     Func, Seq, Spreader, TCOptFunc
 };
@@ -38,6 +39,7 @@ public:
     virtual ~MalType() { }
     MalList* as_list();
     MalVector* as_vector();
+    MalPair* as_pair();
     MalHashMap* as_hashmap();
     MalSymbol* as_symbol();
     MalKeyword* as_keyword();
@@ -144,6 +146,26 @@ public:
         out += contents(readably);
         out += ']';
 
+        return out;
+    }
+};
+
+class MalPair : public MalSequence {
+public:
+    MalPair(MalType* lhs, MalType* rhs) {
+        stored.push_back(lhs);
+        stored.push_back(rhs);
+    }
+
+    Type type() {
+        return Pair;
+    }
+
+    string inspect(bool readably=true) {
+        string out = "(";
+        string lhs = stored.at(0)->inspect(readably);
+        string rhs = stored.at(1)->inspect(readably);
+        out += lhs + " . " + rhs + ")";
         return out;
     }
 };

@@ -32,4 +32,4 @@ step0_repl: step0_repl.cpp
 	clang++ $(CXXFLAGS) -o step0_repl step0_repl.cpp
 
 clean:
-	rm -rf step4_if_fn_do
+	rm -rf step5_tco

@@ -287,6 +287,40 @@ namespace Core {
         return newList;
     }
 
+    MalType* cons(MalType** args, size_t argc) {
+        // not variadic, requires 2 arguments
+        if (argc != 2) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'cons' requires 2 arguments.";
+            throw runExcep;
+        }
+        auto lhs = args[0];
+        auto rhs = args[1];
+
+        // allow prepending to list or a vector
+        if (typeChecksOneOf(rhs->type(), List, Vector)) {
+            MalType* newSeq;
+            switch (rhs->type()) {
+                case List: {
+                    newSeq = new MalList;
+                    break;
+                }
+                default: { // default is for Vector type
+                    newSeq = new MalVector;
+                }
+            }
+            auto seq = newSeq->as_sequence();
+            seq->append(lhs); // add first item
+
+            auto rhsItems = rhs->as_sequence()->items();
+            for (auto item : rhsItems) { // add rhs's items to new sequence
+                seq->append(item);
+            }
+            return newSeq;
+        }
+        return new MalPair(lhs, rhs);
+    }
+
     MalType* isList(MalType** args, size_t argc) {
         if (argc != 1) {
             auto runExcep = RuntimeException();
@@ -295,6 +329,16 @@ namespace Core {
         }
 
         return args[0]->type() == List ? CONSTANTS["true"] : CONSTANTS["false"];
+    }
+
+    MalType* isPair(MalType** args, size_t argc) {
+        if (argc != 1) {
+                auto runExcep = RuntimeException();
+                runExcep.errMessage = "'pair?' requires 1 argument.";
+                throw runExcep;
+        }
+
+        return args[0]->type() == Pair ? CONSTANTS["true"] : CONSTANTS["false"];
     }
 
     MalType* isVector(MalType** args, size_t argc) {
@@ -667,19 +711,17 @@ namespace Core {
 
         auto arg = args[0];
         if (typeChecksOneOf(arg->type(), List, Vector)) {
-            if (arg->type() == List) {
-                auto list = arg->as_list();
-                if (list->items().size() >= 1)
-                    return list->items()[0];
-                else
-                    return CONSTANTS["nil"];
-            } else {
-                auto vec = arg->as_vector();
-                if (vec->items().size() >= 1)
-                    return vec->items()[0];
-                else
-                    return CONSTANTS["nil"];
-            }
+            auto seq = arg->as_sequence();
+            if (seq->items().size() >= 1)
+                return seq->items()[0];
+            else
+                return CONSTANTS["nil"];
+        } else if (typeCheck(arg->type(), Pair)) {
+            auto pair = arg->as_pair();
+            // we already know that pair will not be constructed
+            // unless 2 MalTypes are provided as lhs and rhs of its
+            // construction
+            return pair->items()[0];
         } else {
             auto typeExcep = TypeException();
             typeExcep.errMessage = "'first' not defined for non-sequential operands.";
@@ -714,11 +756,27 @@ namespace Core {
                 else
                     return CONSTANTS["nil"];
             }
+        } else if (typeCheck(arg->type(), Pair)) {
+            auto pair = arg->as_pair();
+            // we already know that pair will not be constructed
+            // unless 2 MalTypes are provided as lhs and rhs of its
+            // construction
+            return pair->items()[1];
         } else {
             auto typeExcep = TypeException();
             typeExcep.errMessage = "'rest' not defined for non-sequential operands.";
             throw typeExcep;
         }
+    }
+
+    MalType* newline(MalType** args, size_t argc) { 
+        if (argc != 0) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'newline' requires no arguments.";
+            throw runExcep;
+        }
+
+        return CONSTANTS["newline"];
     }
 
     BuiltIns getCoreBuiltins() {
@@ -735,7 +793,9 @@ namespace Core {
         core["prn"] = prn;
         core["println"] = println;
         core["list"] = list;
+        core["cons"] = cons;
         core["list?"] = isList;
+        core["pair?"] = isPair;
         core["vector?"] = isVector;
         core["empty?"] = isListOrVecEmpty;
         core["count"] = sequenceCount;
@@ -746,6 +806,7 @@ namespace Core {
         core[">="] = greaterOrEqual;
         core["first"] = sequenceFirst;
         core["rest"] = sequenceRest;
+        core["newline"] = newline;
         return core;
     }
 }
