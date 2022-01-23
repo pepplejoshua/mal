@@ -355,7 +355,66 @@ MalType * EVAL(MalType * ast, Environ* curEnv) {
                     // setting ast to trueBody and then restart loop
                     ast = trueBody;
                     continue;
-                    // return EVAL(trueBody, curEnv);
+                } else if (symstr == "cond") {
+                    // conds are a replacement for repetitive if expressions                    
+                    // instead of:
+                    // (if cond a (if condB b (if condC c)))
+                    // we write:
+                    // (cond [cond a] [condB b] [condC c]). a catch all case can use true as its cond as the last case
+
+                    // make sure we have at least 1 cond case following "cond" keyword
+                    if (rawlist.size() < 2) {
+                        auto runExcep = RuntimeException();
+                        runExcep.errMessage = "cond form requires at least one case.";
+                        throw runExcep;
+                    }
+
+                    // loop through each case, which should be a list or vector
+                    // making sure to skip the cond symbol
+                    bool matched = false;
+                    for (int i = 1; rawlist.size() > i; ++i) {
+                        auto item = rawlist[i];
+                        if (!Core::typeChecksOneOf(item->type(), List, Vector)) {
+                            auto e = TypeException();
+                            e.errMessage = "'" + item->inspect() + "' is not a sequence. Each cond case should be a sequence.";
+                            throw e;
+                        }
+                        // make sure cond has 2 items in it
+                        auto seq = item->as_sequence()->items();
+                        if (seq.size() != 2) {
+                            auto e = TypeException();
+                            e.errMessage = "Each cond case requires a condition and a body: [cond body].";
+                            throw e;
+                        }
+                        // now we EVAL the condition part of seq and if it's a Boolean true, 
+                        // set ast to its body and restart the loop
+                        // else we restart the loop
+                        // unless we see neither a nil or boolean, we should through an error
+                        // (for now)
+
+                        auto cond = EVAL(seq[0], curEnv);
+                        if (cond->type() == Nil) {
+                            continue;
+                        } else if (cond->type() == Boolean && cond == FALSE) {
+                            continue;
+                        } else if (cond->type() == Boolean && cond == TRUE) {
+                            // means we have a truthy value
+                            // so set ast to its body and restart loop
+                            ast = seq[1];
+                            matched = true;
+                            break;
+                        } else {
+                            auto e = TypeException();
+                            e.errMessage = "Each cond case's condition should evaluate to Nil or Boolean.";
+                            throw e;
+                        }
+                    }
+                    if (matched)
+                        continue;
+                    else { // in the case of no match, return nil
+                        ast = NIL;
+                        continue;
+                    }
                 } else if (symstr == "fn*") { // function definition
                     // make sure it has 3 parameters
                     if (rawlist.size() != 3) {
@@ -575,7 +634,7 @@ MalType * EVAL(MalType * ast, Environ* curEnv) {
 }
  
 string PRINT(MalType * input) {
-    return pr_str(input);
+    return pr_str(input, NEWLINE);
 }
 
 string Rep(string input) {
@@ -583,6 +642,9 @@ string Rep(string input) {
 }
 
 void loop() {
+    // find out how and if this works
+    // linenoise::SetMultiLine(true);
+    linenoise::SetHistoryMaxLen(20);
     string historyPath = "./mem.txt";
     linenoise::LoadHistory(historyPath.c_str());
 

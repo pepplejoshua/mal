@@ -180,6 +180,44 @@ namespace Core {
         }
     }
 
+    MalType* mod(MalType** args, size_t argc) {
+        if (argc < 2) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'%' requires at least 2 arguments.";
+            throw runExcep;
+        }
+
+        // check the type of the first argument
+        // to set the precedence, else throw on
+        // type deviation
+        auto f = args[0];
+        Type calcType = f->type();
+
+        if (calcType == Int) {
+            long mod_a = f->as_int()->to_long();
+            for (int i = 1; argc > i; ++i) {
+                auto rhs = args[i];
+                if (typeCheck(rhs->type(), Int)) {
+                    if (rhs->as_int()->to_long() == 0) {
+                        auto runExcep = RuntimeException();
+                        runExcep.errMessage = "modulo by 0 is illegal.";
+                        throw runExcep;
+                    }
+                    mod_a %= rhs->as_int()->to_long();
+                } else {
+                    auto typeExcep = TypeException();
+                    typeExcep.errMessage = "'%' not defined for operands of varying types.";
+                    throw typeExcep;
+                }
+            }
+            return new MalInt(mod_a);
+        } else {
+            auto typeExcep = TypeException();
+            typeExcep.errMessage = "'%' not defined for operands.";
+            throw typeExcep;
+        }
+    }
+
     MalType* or_(MalType** args, size_t argc) {
         if (argc < 2) {
             auto runExcep = RuntimeException();
@@ -671,7 +709,7 @@ namespace Core {
     MalType* str(MalType** args, size_t argc) { 
         string out = "";
         for (int i = 0; argc > i; ++i) {
-            out += pr_str(args[i], false);
+            out += pr_str(args[i], NULL, false);
             if (i < argc && i + 1 != argc) {
                 out += "";
             }
@@ -692,7 +730,7 @@ namespace Core {
 
     MalType* println(MalType** args, size_t argc) { 
         for (int i = 0; argc > i; ++i) {
-            cout << pr_str(args[i], false);
+            cout << pr_str(args[i], NULL, false);
             if (i < argc && i + 1 != argc) {
                 cout << " ";
             }
@@ -746,7 +784,8 @@ namespace Core {
                     return new MalList(rest);
                 }
                 else
-                    return CONSTANTS["nil"];
+                    return new MalList;
+                    // return CONSTANTS["nil"];
             } else {
                 auto vec = arg->as_vector()->items();
                 if (vec.size() > 1) {
@@ -754,7 +793,8 @@ namespace Core {
                     return new MalVector(rest);
                 }
                 else
-                    return CONSTANTS["nil"];
+                    return new MalVector;
+                    // return CONSTANTS["nil"];
             }
         } else if (typeCheck(arg->type(), Pair)) {
             auto pair = arg->as_pair();
@@ -785,6 +825,7 @@ namespace Core {
         core["-"] = sub;
         core["*"] = mult;
         core["/"] = div;
+        core["%"] = mod;
         core["or"] = or_;
         core["and"] = and_;
         core["**"] = exponent;

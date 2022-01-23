@@ -5,4 +5,4 @@
 
 using std::string;
 
-string pr_str(MalType *, bool r=true);
+string pr_str(MalType *, MalString* n=NULL, bool r=true);

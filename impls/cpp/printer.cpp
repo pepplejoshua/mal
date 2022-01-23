@@ -4,8 +4,8 @@
 
 using std::string;
 
-string pr_str(MalType* t, bool readable) {
-    if (t->type() == String && t->inspect(false) == "\n") {
+string pr_str(MalType* t, MalString* Newline, bool readable) {
+    if (t == Newline) {
         return "\n";
     }
     return t->inspect(readable);
