@@ -114,8 +114,9 @@ public:
                     while(!isAtEndOfInput() && currentCharacter() != '\n') {
                         advanceIndexBy(1);
                     }
-                    return s_view.substr(commentStart, t_input_index - commentStart);
-                    break;
+                    continue;
+                    // return s_view.substr(commentStart, t_input_index - commentStart);
+                    // break;
                 }
                 // handles everything else:
                 /*

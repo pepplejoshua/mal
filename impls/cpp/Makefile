@@ -3,10 +3,13 @@
 # CXXFLAGS ?= -g -Wall -Werror -Wextra
 CXXFLAGS ?= -std=c++20
 
-build: step5_tco
+build: step6_file
 
 rm:
 	make clean && make
+
+step6_file: step6_file.cpp reader.cpp printer.cpp mal_types.cpp
+	clang++ $(CXXFLAGS) -o $@ $^ 
 
 step5_tco: step5_tco.cpp reader.cpp printer.cpp mal_types.cpp
 	clang++ $(CXXFLAGS) -o $@ $^
@@ -32,4 +35,4 @@ step0_repl: step0_repl.cpp
 	clang++ $(CXXFLAGS) -o step0_repl step0_repl.cpp
 
 clean:
-	rm -rf step5_tco
+	rm -rf step6_file

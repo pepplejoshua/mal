@@ -25,11 +25,12 @@ class MalInt;
 class MalFunc;
 class MalTCOptFunc;
 class MalSpreader;
+class MalAtom;
 
 enum Type {
     List, Vector, Pair, HashMap, Symbol,
     Keyword, String, Nil, Boolean, Int,
-    Func, Seq, Spreader, TCOptFunc
+    Func, Seq, Spreader, TCOptFunc, Atom
 };
 
 class MalType {
@@ -51,6 +52,7 @@ public:
     MalSequence* as_sequence();
     MalSpreader* as_spreader();
     MalTCOptFunc* as_tcoptfunc();
+    MalAtom* as_atom();
 };
 
 class TypeException : exception {
@@ -178,18 +180,18 @@ public:
         return HashMap;
     }
 
-    void set(MalType* key, MalType* val) {
+    void set(string key, MalType* val) {
         hmap[key] = val;
     }
 
     MalType* get(MalType* key) {
-        auto search = hmap.find(key);
+        auto search = hmap.find(key->inspect());
 
         if (search != hmap.end()) {
             return search->second;
         }
 
-        return nullptr;
+        return NULL;
     }
 
     auto items() {
@@ -199,7 +201,7 @@ public:
     string inspect(bool readably=true) {
         string out = "{";
         for (auto item : hmap) {
-            out += item.first->inspect(readably) + " ";
+            out += item.first + " ";
             out += item.second->inspect(readably) + " ";
         }
         // overwrite the last append space 
@@ -214,7 +216,7 @@ public:
     }
 
 private:
-    map < MalType*, MalType* > hmap;
+    map < string, MalType* > hmap;
 };
 
 
@@ -500,4 +502,37 @@ private:
     Environ* envAtTimeOf;
     MalFunc* actualFn;
     bool isVariadic;
+};
+
+class MalAtom : public MalType {
+public:
+    MalAtom(MalType* c) : content {c}, tag {"<|atom|>"} { }
+
+    Type type() {
+        return Atom;
+    }
+
+    string inspect(bool readably=true) {
+        return tag;
+    }
+
+    auto deref() {
+        return content;
+    }
+
+    void reset(MalType* n) {
+        content = n;
+    }
+
+    string name() {
+        return tag;
+    }
+
+    void setName(string n) {
+        tag = n;
+    }
+
+private:
+    MalType* content;
+    string tag;
 };

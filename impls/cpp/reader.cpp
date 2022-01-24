@@ -10,8 +10,6 @@ using std::vector;
 using std::cout;
 using std::cerr;
 
-auto comment = CommentException();
-
 Env glob;
 vector < string_view > tokenize(string &input) {
     Tokenizer tokenizer(input);
@@ -54,8 +52,6 @@ optional < MalType * > read_form(Reader &reader) {
             return read_dereferenced_val(reader);
         case '^': // attached meta data dictionary to a MalTypea
             return read_metadata_w_object(reader);
-        case ';': // comments
-            throw comment;
         default:
             return read_atom(reader);
     }
@@ -143,7 +139,7 @@ optional < MalType * > read_hashmap(Reader &reader) {
             throw r_except;
         }
         auto val = read_form(reader);
-        hmap->set(*key, *val);
+        hmap->set(key.value()->inspect(), *val);
     }
     auto r_except = ReaderException();
     r_except.errMessage = "unbalanced";

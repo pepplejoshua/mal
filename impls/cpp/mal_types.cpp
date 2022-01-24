@@ -56,7 +56,7 @@ MalFunc* MalType::as_func() {
 }
 
 MalSequence* MalType::as_sequence() {
-    assert(type() == List || type() == Vector);
+    assert(type() == List || type() == Vector || type() == Pair);
     return static_cast<MalSequence *>(this);
 }
 
@@ -68,4 +68,9 @@ MalSpreader* MalType::as_spreader() {
 MalTCOptFunc* MalType::as_tcoptfunc() {
     assert(type() == TCOptFunc);
     return static_cast<MalTCOptFunc *>(this);
+}
+
+MalAtom* MalType::as_atom() {
+    assert(type() == Atom);
+    return static_cast<MalAtom *>(this);
 }

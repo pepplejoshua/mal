@@ -3,13 +3,22 @@
 #include <map>
 #include <string>
 #include <cmath>
+#include <fstream>
 #include "mal_types.hpp"
 #include "printer.hpp"
+#include "reader.hpp"
 #include "env.hpp"
 
 using namespace std;
 
+// used to cache nil, true and false to be reused by reader
 Env CONSTANTS;
+
+// allows me to call EVAL defined in main
+// used as the global environment
+Environ* TOP_LEVEL = new Environ(NULL);
+// EVAL used by eval
+MalType * EVAL(MalType *, Environ* curEnv);
 
 namespace Core {
     using BuiltIns = map < string, Function >;
@@ -24,6 +33,14 @@ namespace Core {
 
     bool typeChecksOneOf(Type A, Type ExpectedA, Type ExpectedB) {
         return A == ExpectedA ? true : A == ExpectedB ? true : false;
+    }
+
+    bool typeChecksOneFrom(Type A, vector < Type > Types) {
+        for (auto t : Types) {
+            if (A == t)
+                return true;
+        }
+        return false;
     }
     
     MalType* add(MalType** args, size_t argc) {
@@ -435,6 +452,10 @@ namespace Core {
     }
 
     bool compareSequenceItems(vector <MalType* > A, vector < MalType* > B) {
+        if (A.size() != B.size()) {
+            return false;
+        }
+
         for (int i = 0; A.size() > i; ++i) {
             auto l = A[i];
             auto r = B[i];
@@ -442,7 +463,6 @@ namespace Core {
             if (typeChecksOneOf(l->type(), List, Vector) && typeChecksOneOf(r->type(), List, Vector)) {
                 auto l_con = l->as_sequence()->contents(false);
                 auto r_con = r->as_sequence()->contents(false);
-                // cout << l_con << " == " << r_con << endl;
                 if (l_con != r_con)
                     return false;
             } else {
@@ -492,6 +512,7 @@ namespace Core {
                 case List:
                 case Vector:
                 case Func:
+                case Pair:
                 case HashMap: {
                     equal = l->inspect() == r->inspect();
                     break;
@@ -819,6 +840,267 @@ namespace Core {
         return CONSTANTS["newline"];
     }
 
+    // this function exposes read_str from reader onto its argument
+    // and turns it into a MalType, or returns nil
+    MalType* readstring(MalType** args, size_t argc) { 
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'read-string' requires 1 argument.";
+            throw runExcep;
+        }
+        auto item = args[0];
+        // make sure argument is a String
+        if (!typeCheck(item->type(), String)) {
+            auto typeExcep = TypeException();
+            typeExcep.errMessage = "'read-string' only takes a String argument.";
+            throw typeExcep;
+        }
+        auto src = item->as_string()->inspect(false);
+        auto res = read_str(src, CONSTANTS).value_or(CONSTANTS["nil"]);
+        return res;
+    }
+
+    MalType* slurp(MalType** args, size_t argc) { 
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'slurp' requires 1 argument.";
+            throw runExcep;
+        }
+        auto item = args[0];
+        // make sure argument is a String
+        if (!typeCheck(item->type(), String)) {
+            auto typeExcep = TypeException();
+            typeExcep.errMessage = "'slurp' only takes a String argument.";
+            throw typeExcep;
+        }
+        auto path = item->as_string()->inspect(false);
+        // read file using a closure
+        auto fileReader = [&, path]() {
+            ifstream file(path);
+            if (!file.is_open()) {
+                throw system_error(errno, system_category(), "unable to open " + path);
+            }
+
+            string content = "";
+            string line;
+            while(getline(file, line)) {
+                content += line + "\\n"; // add back the stripped newline character
+            }
+
+            // cout << content << endl;
+            return content;
+        };
+        auto src = fileReader();
+        return new MalString(src);
+    }
+
+    MalType* eval(MalType** args, size_t argc) { 
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'eval' requires 1 argument.";
+            throw runExcep;
+        }
+
+        auto ast = args[0];
+        return EVAL(ast, TOP_LEVEL);
+        // return CONSTANTS["nil"];
+    }
+
+    MalType* make_atom(MalType** args, size_t argc) {
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'atom' requires 1 argument.";
+            throw runExcep;
+        }
+
+        auto obj = args[0];
+        auto atom = new MalAtom(obj);
+        atom->setName("(atom " + obj->inspect() + ")");
+        return atom;
+    }
+
+    MalType* isAtom(MalType** args, size_t argc) {
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'atom?' requires 1 argument.";
+            throw runExcep;
+        }
+        auto item = args[0];
+        return item->type() == Atom ? CONSTANTS["true"] : CONSTANTS["false"];
+    }
+
+    MalType* deref(MalType** args, size_t argc) {
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'atom?' requires 1 argument.";
+            throw runExcep;
+        }
+
+        auto item = args[0];
+        if (!typeCheck(item->type(), Atom)) {
+            auto typeExcep = TypeException();
+            typeExcep.errMessage = "'deref' only takes an Atom argument.";
+            throw typeExcep;
+        }
+        auto atom = item->as_atom();
+        return atom->deref();
+    }
+
+    MalType* reset_atom(MalType** args, size_t argc) {
+        if (argc != 2) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'reset!' requires 2 arguments.";
+            throw runExcep;
+        }
+
+        auto item = args[0];
+        if (!typeCheck(item->type(), Atom)) {
+            auto typeExcep = TypeException();
+            typeExcep.errMessage = "'deref' only takes an Atom argument.";
+            throw typeExcep;
+        }
+        auto atom = item->as_atom();
+        auto replacement = args[1];
+        atom->reset(replacement);
+        return replacement;
+    }
+
+    MalType* swap_atom(MalType** args, size_t argc) {
+        if (argc < 2) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'swap!' requires at least 2 arguments.";
+            throw runExcep;
+        }
+
+        // (swap! atom fn & params)
+        // so args would be: atom fn and 0 or more arguments to pass to fn
+        // have to make sure we have at least the atom and fn
+        auto item = args[0];
+        auto second = args[1];
+        if (!typeCheck(item->type(), Atom)) {
+            auto typeExcep = TypeException();
+            typeExcep.errMessage = "'swap!' requires an Atom as it's first argument.";
+            throw typeExcep;
+        }   
+        auto atom = item->as_atom();
+
+        MalType* callable = NULL;
+        if (!typeChecksOneOf(second->type(), TCOptFunc, Func)) {
+            auto typeExcep = TypeException();
+            typeExcep.errMessage = "'swap!' requires a TCOpt|Func as it's second argument.";
+            throw typeExcep;
+        } else {
+            switch (second->type()) {
+                case TCOptFunc: {
+                    callable = second->as_tcoptfunc();
+                    break;
+                }
+                default: { // for Func
+                    callable = second->as_func();
+                }
+            }
+        }
+
+        auto list = new MalList;
+        list->append(callable);
+        list->append(atom->deref());
+
+        for (int i = 2; argc > i; ++i) {
+            list->append(args[i]);
+        }
+        
+        MalType* items[1] { list };
+        auto newVal = eval(items, 1);
+        atom->reset(newVal);
+        return newVal;
+    }
+
+    MalType* sequenceFind(MalType** args, size_t argc) {
+        if (argc != 2) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'find!' requires 2 arguments.";
+            throw runExcep;
+        }
+
+        auto item = args[0];
+        auto key = args[1];
+        vector < Type > stypes { Pair, List, Vector, HashMap };
+        // we expect a sequence to use find one
+        if (!typeChecksOneFrom(item->type(), stypes)) {
+            auto typeExcep = TypeException();
+            typeExcep.errMessage = "'find' requires a Sequence|HashMap as it's first argument.";
+            throw typeExcep;
+        }
+
+        switch (item->type()) {
+            case Pair:
+            case List:
+            case Vector: {
+                auto seq = item->as_sequence()->items();
+                int index = -1;
+                bool found = false;
+                for (int i = 0; seq.size() > i; ++i) {
+                    auto c = seq[i];
+                    // if the key and current item are either a list or vector,
+                    // we use a helper to tell if they're the same content-wise
+                    if (typeChecksOneOf(c->type(), List, Vector) && 
+                        typeChecksOneOf(key->type(), List, Vector)) {
+                        auto seqA = c->as_sequence()->items();
+                        auto seqB = key->as_sequence()->items();
+                        if (compareSequenceItems(seqA, seqB)) {
+                            found = true;
+                            index = i;
+                            break;
+                        }
+                    } else {
+                        if (c->inspect() == key->inspect()) {
+                            found = true;
+                            index = i;
+                            break;
+                        }
+                    }
+                }
+
+                if (found) {
+                    return new MalInt(index);
+                }
+                return CONSTANTS["nil"];
+            }
+            default: { // default is HashMap
+                auto hmap = item->as_hashmap();
+                auto match = hmap->get(key);
+                if (match == NULL) {
+                    return CONSTANTS["nil"];
+                }
+                return match;
+            }
+        }
+    }
+
+    MalType* assoc(MalType** args, size_t argc) {
+        // takes a hashmap, a key (could be existing or not) and a value
+        // and inserts value at key in provide hashmap
+        if (argc != 3) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'assoc!' requires 3 arguments.";
+            throw runExcep;
+        }
+
+        auto store = args[0];
+        auto k = args[1];
+        auto v = args[2];
+
+        if (!typeCheck(store->type(), HashMap)) {
+            auto typeExcep = TypeException();
+            typeExcep.errMessage = "'assoc' requires a HashMap as it's first argument.";
+            throw typeExcep;
+        }
+
+        auto hmap = store->as_hashmap();
+        hmap->set(k->inspect(), v);
+        return hmap;
+    }
+
     BuiltIns getCoreBuiltins() {
         BuiltIns core;
         core["+"] = add;
@@ -848,6 +1130,17 @@ namespace Core {
         core["first"] = sequenceFirst;
         core["rest"] = sequenceRest;
         core["newline"] = newline;
+        core["read-string"] = readstring;
+        core["parse"] = readstring;
+        core["slurp"] = slurp;
+        core["eval"] = eval;
+        core["atom"] = make_atom;
+        core["atom?"] = isAtom;
+        core["deref"] = deref;
+        core["reset!"] = reset_atom;
+        core["swap!"] = swap_atom;
+        core["find"] = sequenceFind;
+        core["assoc"] = assoc;
         return core;
     }
 }
