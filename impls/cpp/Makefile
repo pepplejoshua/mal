@@ -1,7 +1,7 @@
 # set this if not already set
 # generates additional files
 # CXXFLAGS ?= -g -Wall -Werror -Wextra
-CXXFLAGS ?= -std=c++20
+CXXFLAGS ?=  -include-pch ../linenoise.hpp.gch -std=c++20 -fuse-ld=/usr/local/opt/llvm/bin/ld64.lld
 
 build: step6_file
 
@@ -9,7 +9,7 @@ rm:
 	make clean && make
 
 step6_file: step6_file.cpp reader.cpp printer.cpp mal_types.cpp
-	clang++ $(CXXFLAGS) -o $@ $^ 
+	clang++ $(CXXFLAGS) -o $@ $^
 
 step5_tco: step5_tco.cpp reader.cpp printer.cpp mal_types.cpp
 	clang++ $(CXXFLAGS) -o $@ $^

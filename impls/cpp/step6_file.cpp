@@ -1,7 +1,6 @@
 #include <string>
-#include <string_view>
 #include <iostream>
-#include <memory>
+#include <chrono>
 #include "../linenoise.hpp"
 #include "reader.hpp"
 #include "printer.hpp"
@@ -14,6 +13,7 @@ using std::getline;
 using std::cout;
 using std::cin;
 using std::endl;
+using namespace std::chrono;
 
 auto NIL = new MalNil();
 auto TRUE = new MalBoolean(true);
@@ -43,18 +43,6 @@ MalType * eval_ast(MalType * ast, Environ* curEnv) {
                 return Core::sub(arg, 1);
             } else {
                 return curEnv->get(sym);
-            }
-        }
-        case Keyword: {
-            // similar to Symbol
-            auto kw = ast->as_keyword();
-            auto kwstr = kw->inspect();
-            if (kwstr[0] == '-' && kwstr.size() > 1) {
-                auto actual = new MalSymbol(kwstr.substr(1, kwstr.size()));
-                MalType* arg[1] { curEnv->get(actual) };
-                return Core::sub(arg, 1);
-            } else {
-                return curEnv->get(kw);
             }
         }
         case List: {
@@ -579,9 +567,34 @@ MalType * EVAL(MalType * ast, Environ* curEnv) {
                     auto actualFn = new MalFunc(closure, "<~lambda~>");
                     // return new MalFunc(closure, "<~lambda~>");
                     return new MalTCOptFunc(body, var_params, curEnv, actualFn, variadic);
+                } else if (symstr == "time") {
+                    if (rawlist.size() != 2) {
+                        auto runExcep = RuntimeException();
+                        runExcep.errMessage = "'time' requires 1 argument.";
+                        throw runExcep;
+                    }
+                    auto item = rawlist[1];
+
+                    // since we have to avoid executing time's function
+                    // we need to make sure it is an executable form, which is a List
+                    if (!Core::typeCheck(item->type(), List)) {
+                        auto typeExcept = TypeException();
+                        typeExcept.errMessage = "'" + item->inspect() + "' is not a callable form (List).";
+                        throw typeExcept;
+                    }
+
+                    auto fn = item->as_list();
+                    ast = fn; // set ast to the fn
+                    auto start = high_resolution_clock::now();
+                    EVAL(ast, curEnv);
+                    auto end = high_resolution_clock::now();
+                    auto dur = duration_cast<microseconds>(end - start).count();
+                    string msg = "Elapsed time: " + to_string(dur) + " microseconds. (1 microsecond == 10^-6 of 1 sec).";
+                    return new MalString(msg);
                 }
                 // if it is neither, it will full through to the bottom
                 // and be a function call
+                
             }
             // evaluate with eval_ast, and get new list
             // then call list[0] as a function with 
@@ -676,9 +689,9 @@ MalType * EVAL(MalType * ast, Environ* curEnv) {
                 continue;
             }
             auto nonCallable = ast->as_list()->items()[0];
-            auto runExcep = RuntimeException();
-            runExcep.errMessage = "'" + nonCallable->inspect() + "' is not a callable.";
-            throw runExcep;
+            auto typeExcept = TypeException();
+            typeExcept.errMessage = "'" + nonCallable->inspect() + "' is not a callable.";
+            throw typeExcept;
         }
     }
 }
@@ -717,11 +730,13 @@ void loop(bool runFile=false, string filepath="") {
     // which is ironic, so delimter for this is:
     // code(content)code, with content being actual string
     auto notFn = R"code(
+                (do
                     (def! not
                         (fn* [a]
                             (if a
                                 false
-                                true))))code";
+                                true)))
+                    (def! ! not)))code";
     Rep(notFn);
 
     // create load-file, which takes 1 variable (which is the file path),

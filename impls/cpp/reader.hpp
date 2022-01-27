@@ -6,7 +6,6 @@
 #include <exception>
 #include <vector>
 #include <optional>
-#include <memory>
 #include "mal_types.hpp"
 #include "env.hpp"
 

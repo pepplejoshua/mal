@@ -236,6 +236,15 @@ optional < MalType * > read_atom(Reader &reader) {
                 }
             } else {
                 // determine is we have a - sign before our symbol
+                if (token.size() > 1 && firstChar == '-') {
+                    bool isKeyword = token.find(":") != string::npos;
+                    if (!isKeyword) { // its not a keyword so parse it to a symbol
+                        return new MalSymbol(reader.next().value());
+                    }
+                    reader.next();
+                    // if it is a negated symbol, return only the negation sign
+                    return new MalSymbol("-");
+                }
                 return new MalSymbol(reader.next().value());
             }
         }

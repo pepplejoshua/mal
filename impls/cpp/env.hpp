@@ -35,7 +35,7 @@ public:
         // even though fn* and def! implement their own checks for this error,
         // i will leave it in as a catch all for anything that slips through
         // the cracks in future additions perhaps...
-        if (id->type() != Symbol && id->type() != Keyword) {
+        if (id->type() != Symbol) {
             auto e = TypeException();
             e.errMessage = "'" + id->inspect() + "' cannot be used as a binding key.";
             throw e;

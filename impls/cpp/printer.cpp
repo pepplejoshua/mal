@@ -1,6 +1,4 @@
 #include "printer.hpp"
-#include "mal_types.hpp"
-#include <string>
 
 using std::string;
 

@@ -12,8 +12,3 @@
     (cond
         [(<= n 1) n]
         [true (+ (fib (- n 1)) (fib (- n 2)))])))
-
-(def! fib (cache fib))
-
-(prn (list? *ARGV*))
-(println (fib 6))
