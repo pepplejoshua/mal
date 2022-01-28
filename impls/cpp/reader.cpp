@@ -291,7 +291,7 @@ optional < MalType * > read_quoted_val(Reader &reader) {
             // skip '
             reader.next();
             auto quoteList = new MalList();
-            quoteList->append(new MalSymbol("quote"));
+            quoteList->append(glob["quote"]);
             quoteList->append(read_form(reader).value());
             return quoteList;
         }
@@ -300,7 +300,7 @@ optional < MalType * > read_quoted_val(Reader &reader) {
             // skip `
             reader.next();
             auto q_quoteList = new MalList();
-            q_quoteList->append(new MalSymbol("quasiquote"));
+            q_quoteList->append(glob["quasiquote"]);
             q_quoteList->append(read_form(reader).value());
             return q_quoteList;
         }
@@ -312,12 +312,12 @@ optional < MalType * > read_quoted_val(Reader &reader) {
             // splice-unquote
             if (token.length() > 1 && token[1] == '@') {
                 auto s_unquoteList = new MalList();
-                s_unquoteList->append(new MalSymbol("splice-unquote"));
+                s_unquoteList->append(glob["splice-unquote"]);
                 s_unquoteList->append(read_form(reader).value());
                 return s_unquoteList;
             } else { // unquote
                 auto unquoteList = new MalList();
-                unquoteList->append(new MalSymbol("unquote"));
+                unquoteList->append(glob["unquote"]);
                 unquoteList->append(read_form(reader).value());
                 return unquoteList;
             }
@@ -334,7 +334,7 @@ optional < MalType * > read_quoted_val(Reader &reader) {
 optional < MalType * > read_dereferenced_val(Reader &reader) {
     reader.next();
     auto deref_list = new MalList();
-    auto sym = new MalSymbol("deref");
+    auto sym = glob["deref"];
     deref_list->append(sym);
     deref_list->append(read_form(reader).value());
     return deref_list;
@@ -343,7 +343,7 @@ optional < MalType * > read_dereferenced_val(Reader &reader) {
 optional < MalType * > read_metadata_w_object(Reader &reader) {
     reader.next();
     auto meta_list = new MalList();
-    auto sym = new MalSymbol("with-meta");
+    auto sym = glob["with-meta"];
     meta_list->append(sym);
     auto metadata_hmap = read_hashmap(reader).value();
     auto obj = read_form(reader).value();

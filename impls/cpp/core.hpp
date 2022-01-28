@@ -354,16 +354,7 @@ namespace Core {
 
         // allow prepending to list or a vector
         if (typeChecksOneOf(rhs->type(), List, Vector)) {
-            MalType* newSeq;
-            switch (rhs->type()) {
-                case List: {
-                    newSeq = new MalList;
-                    break;
-                }
-                default: { // default is for Vector type
-                    newSeq = new MalVector;
-                }
-            }
+            auto newSeq = new MalList;
             auto seq = newSeq->as_sequence();
             seq->append(lhs); // add first item
 
@@ -1008,7 +999,6 @@ namespace Core {
         for (int i = 2; argc > i; ++i) {
             list->append(args[i]);
         }
-        
         MalType* items[1] { list };
         auto newVal = eval(items, 1);
         atom->reset(newVal);
@@ -1082,7 +1072,7 @@ namespace Core {
         // and inserts value at key in provide hashmap
         if (argc != 3) {
             auto runExcep = RuntimeException();
-            runExcep.errMessage = "'assoc!' requires 3 arguments.";
+            runExcep.errMessage = "'assoc' requires 3 arguments.";
             throw runExcep;
         }
 
@@ -1100,6 +1090,175 @@ namespace Core {
         hmap->set(k->inspect(), v);
         return hmap;
     }
+
+    MalType* concat(MalType** args, size_t argc) {
+        auto res = new MalList;
+        for (int i = 0; argc > i; ++i) {
+            auto arg = args[i];
+            // make sure the argument is a List
+            if (!typeChecksOneOf(arg->type(), List, Vector)) {
+                auto typeExcep = TypeException();
+                typeExcep.errMessage = "'concat' requires List|Vector arguments.";
+                throw typeExcep;
+            }
+            auto seq = arg->as_sequence()->items();
+            for (int j = 0; seq.size() > j; ++j)
+                res->append(seq[j]);
+        }
+        return res;
+    }
+
+    MalType* quasiquote(MalType** args, size_t argc) {
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'quasiquote' requires 1 arguments.";
+            throw runExcep;
+        }
+
+        auto ast = args[0];
+        auto result = new MalList;
+
+        switch (ast->type()) {
+            case List: {
+                auto list = ast->as_list();
+                auto items = list->items();
+
+                if (items.size() < 1) {
+                    return list;
+                }
+
+                auto first = items[0];
+                
+                // first test
+                if (first->inspect() == "unquote") {
+                    return items[1];
+                }
+
+                // second test
+                int count = items.size() - 1;
+                // loop inreverse and then:
+                for (int i = count; i >= 0; --i) {
+                    auto elem = list->items()[i];
+                    // make sure elem is a list, and starts with splice-quote
+                    if (typeCheck(elem->type(), List)) {
+                        // check for splice-quote
+                        auto elems = elem->as_list()->items();
+                        
+                        if (elems.size() > 0) {
+                            auto top = elems[0];
+
+                            if (top->inspect() == "splice-unquote") {
+                                // replace current result with a new list that
+                                // contains:
+                                // concat symbol
+                                // elem's second elementsss
+                                // result
+                                auto newRes = new MalList;
+                                newRes->append(new MalSymbol("concat"));
+                                newRes->append(elems.at(1));
+                                newRes->append(result);
+                                result = newRes;
+                                continue;
+                            }
+                        }
+                    }
+                    // catch all
+                    auto newRes = new MalList;
+                    newRes->append(new MalSymbol("cons"));
+                    // call quasiquote on elem
+                    MalType *args[1] { elem };
+                    auto q_elem = quasiquote(args, 1);
+                    newRes->append(q_elem);
+                    newRes->append(result);
+                    result = newRes;
+                }
+                return result;
+            }
+            case Vector: {
+                auto vect = ast->as_vector()->items();
+                int count = vect.size() -1;
+                for (int i = count; i >= 0; --i) {
+                    auto elem = vect[i];
+                    // make sure elem is a list, and starts with splice-quote
+                    if (typeCheck(elem->type(), List)) {
+                        // check for splice-quote
+                        auto elems = elem->as_list()->items();
+                        
+                        if (elems.size() > 0) {
+                            auto top = elems[0];
+
+                            if (top->inspect() == "splice-unquote") {
+                                // replace current result with a new list that
+                                // contains:
+                                // concat symbol
+                                // elem's second elementsss
+                                // result
+                                auto newRes = new MalList;
+                                newRes->append(new MalSymbol("concat"));
+                                newRes->append(elems.at(1));
+                                newRes->append(result);
+                                result = newRes;
+                                continue;
+                            }
+                        }
+                    }
+
+                    auto newRes = new MalList;
+                    newRes->append(new MalSymbol("cons"));
+                    MalType *args[1] { elem };
+                    auto q_elem = quasiquote(args, 1);
+                    newRes->append(q_elem);
+                    newRes->append(result);
+                    result = newRes;
+                }
+                auto temp = new MalList;
+                temp->append(new MalSymbol("vec"));
+                temp->append(result);
+                result = temp;
+                return result;
+            }
+            case Symbol:
+            case HashMap: {
+                auto res = new MalList;
+                res->append(CONSTANTS["quote"]);
+                res->append(ast);
+                return res;
+            }
+            default:
+                return ast;
+        }
+    }
+
+    MalType* vec(MalType** args, size_t argc) {
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'vec' requires 1 arguments.";
+            throw runExcep;
+        }
+
+        auto item = args[0];
+
+        switch(item->type()) {
+            case List:
+            case Pair: {
+                auto res = new MalVector;
+                auto items = item->as_sequence()->items();
+                for (auto i : items) {
+                    res->append(i);
+                }
+                return res;
+            }
+            case Vector:
+                return item;
+            default: {
+                auto typeExcep = TypeException();
+                typeExcep.errMessage = "'vec' requires a Sequence as it's first argument.";
+                throw typeExcep;
+            }
+
+        }
+    }
+    
 
     BuiltIns getCoreBuiltins() {
         BuiltIns core;
@@ -1141,6 +1300,9 @@ namespace Core {
         core["swap!"] = swap_atom;
         core["find"] = sequenceFind;
         core["assoc"] = assoc;
+        core["quasiquote"] = quasiquote;
+        core["concat"] = concat;
+        core["vec"] = vec;
         return core;
     }
 }
