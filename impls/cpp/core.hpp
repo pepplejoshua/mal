@@ -397,6 +397,21 @@ namespace Core {
         return args[0]->type() == Vector ? CONSTANTS["true"] : CONSTANTS["false"];
     }
 
+    MalType* isSequence(MalType** args, size_t argc) {
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'seq?' requires 1 argument.";
+            throw runExcep;
+        }
+
+        auto item = args[0];
+        vector < Type > types { List, Vector, Pair };
+        if (!typeChecksOneFrom(item->type(), types)) {
+            return CONSTANTS["false"];
+        }
+        return CONSTANTS["true"];
+    }
+
     MalType* isListOrVecEmpty(MalType** args, size_t argc) {
         if (argc != 1) {
             auto runExcep = RuntimeException();
@@ -797,7 +812,6 @@ namespace Core {
                 }
                 else
                     return new MalList;
-                    // return CONSTANTS["nil"];
             } else {
                 auto vec = arg->as_vector()->items();
                 if (vec.size() > 1) {
@@ -806,7 +820,6 @@ namespace Core {
                 }
                 else
                     return new MalVector;
-                    // return CONSTANTS["nil"];
             }
         } else if (typeCheck(arg->type(), Pair)) {
             auto pair = arg->as_pair();
@@ -1259,6 +1272,16 @@ namespace Core {
         }
     }
     
+    MalType* type(MalType** args, size_t argc) {
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'type?' requires 1 arguments.";
+            throw runExcep;
+        }
+
+        auto item = args[0];
+        return item->stringedType();
+    }
 
     BuiltIns getCoreBuiltins() {
         BuiltIns core;
@@ -1279,6 +1302,7 @@ namespace Core {
         core["list?"] = isList;
         core["pair?"] = isPair;
         core["vector?"] = isVector;
+        core["seq?"] = isSequence;
         core["empty?"] = isListOrVecEmpty;
         core["count"] = sequenceCount;
         core["="] = isEqual;
@@ -1303,6 +1327,7 @@ namespace Core {
         core["quasiquote"] = quasiquote;
         core["concat"] = concat;
         core["vec"] = vec;
+        core["type"] = type;
         return core;
     }
 }

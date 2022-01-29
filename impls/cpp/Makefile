@@ -3,10 +3,13 @@
 # CXXFLAGS ?= -g -Wall -Werror -Wextra
 CXXFLAGS ?=  -include-pch ../linenoise.hpp.gch -std=c++20 -fuse-ld=/usr/local/opt/llvm/bin/ld64.lld
 
-build: step7_quote
+build: step8_macros
 
 rm:
 	make clean && make
+
+step8_macros: step8_macros.cpp reader.cpp printer.cpp mal_types.cpp
+	clang++ $(CXXFLAGS) -o $@ $^
 
 step7_quote: step7_quote.cpp reader.cpp printer.cpp mal_types.cpp
 	clang++ $(CXXFLAGS) -o $@ $^
@@ -37,4 +40,4 @@ step0_repl: step0_repl.cpp
 	clang++ $(CXXFLAGS) -o step0_repl step0_repl.cpp
 
 clean:
-	rm -rf step7_quote
+	rm -rf step8_macros

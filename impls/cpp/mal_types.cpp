@@ -1,5 +1,20 @@
 #include "mal_types.hpp"
 
+MalString* LIST = new MalString("List");
+MalString* VEC = new MalString("Vector");
+MalString* PAIR = new MalString("Pair");
+MalString* HASHMAP = new MalString("HashMap");
+MalString* SYM = new MalString("Symbol");
+MalString* SPREADR = new MalString("Spreader");
+MalString* KEYWORD = new MalString("Keyword");
+MalString* STR = new MalString("String");
+MalString* NIL_V = new MalString("Nil");
+MalString* BOOL = new MalString("Boolean");
+MalString* NUM = new MalString("Int");
+MalString* FN = new MalString("Func");
+MalString* TCOFN = new MalString("TCOFunc");
+MalString* ATOM = new MalString("Atom");
+
 MalList* MalType::as_list() {
     assert(type() == List);
     return static_cast<MalList *>(this);
@@ -56,8 +71,9 @@ MalFunc* MalType::as_func() {
 }
 
 MalSequence* MalType::as_sequence() {
-    assert(type() == List || type() == Vector || type() == Pair);
-    return static_cast<MalSequence *>(this);
+    if (type() == List || type() == Vector || type() == Pair)
+        return static_cast<MalSequence *>(this);
+    assert(false);
 }
 
 MalSpreader* MalType::as_spreader() {

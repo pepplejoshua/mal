@@ -35,6 +35,7 @@ enum Type {
 class MalType {
 public:
     virtual Type type() = 0;
+    virtual MalString* stringedType() = 0;
     virtual string inspect(bool readably=true) = 0;
     virtual ~MalType() { }
     MalList* as_list();
@@ -53,6 +54,21 @@ public:
     MalTCOptFunc* as_tcoptfunc();
     MalAtom* as_atom();
 };
+
+extern MalString* LIST;
+extern MalString* VEC;
+extern MalString* PAIR;
+extern MalString* HASHMAP;
+extern MalString* SYM;
+extern MalString* SPREADR;
+extern MalString* KEYWORD;
+extern MalString* STR;
+extern MalString* NIL_V;
+extern MalString* BOOL;
+extern MalString* NUM;
+extern MalString* FN;
+extern MalString* TCOFN;
+extern MalString* ATOM;
 
 class TypeException : exception {
 public:
@@ -122,6 +138,10 @@ public:
         return List;
     }
 
+    MalString* stringedType() {
+        return LIST;
+    }
+
     string inspect(bool readably=true) {
         string out = "(";
         out += contents(readably);
@@ -140,6 +160,10 @@ public:
 
     Type type() {
         return Vector;
+    }
+
+    MalString* stringedType() {
+        return VEC;
     }
 
     string inspect(bool readably=true) {
@@ -162,6 +186,10 @@ public:
         return Pair;
     }
 
+    MalString* stringedType() {
+        return PAIR;
+    }
+
     string inspect(bool readably=true) {
         string out = "(";
         string lhs = stored.at(0)->inspect(readably);
@@ -173,10 +201,14 @@ public:
 
 class MalHashMap : public MalType {
 public:
-    MalHashMap() {}
+    MalHashMap() { }
 
     Type type() {
         return HashMap;
+    }
+    
+    MalString* stringedType() {
+        return HASHMAP;
     }
 
     void set(string key, MalType* val) {
@@ -227,6 +259,10 @@ public:
         return Symbol;
     }
 
+    MalString* stringedType() {
+        return SYM;
+    }
+
     string str() {
         return s_str;
     }
@@ -246,6 +282,10 @@ public:
     Type type() {
         return Spreader;
     }
+
+    MalString* stringedType() {
+        return SPREADR;
+    }
 };
 
 class MalKeyword : public MalType {
@@ -254,6 +294,10 @@ public:
 
     Type type() {
         return Keyword;
+    }
+
+    MalString* stringedType() {
+        return KEYWORD;
     }
 
     string inspect(bool readably=true) {
@@ -272,9 +316,13 @@ public:
         return String;
     }   
 
+    MalString* stringedType() {
+        return STR;
+    }
+
     string content() {
-        if (s_str.size() > 1)
-            return s_str.substr(1, s_str.size()-2);
+        if (s_str.size() > 0)
+            return s_str;
         return "";
     }
 
@@ -373,6 +421,10 @@ public:
         return Nil;
     }
 
+    MalString* stringedType() {
+        return NIL_V;
+    }
+
     string inspect(bool readably=true) {
         return "nil";
     }
@@ -384,6 +436,10 @@ public:
 
     Type type() {
         return Boolean;
+    }
+
+    MalString* stringedType() {
+        return BOOL;
     }
 
     bool val() {
@@ -404,6 +460,10 @@ public:
 
     Type type() {
         return Int;
+    }
+
+    MalString* stringedType() {
+        return NUM;
     }
 
     long to_long() {
@@ -432,6 +492,10 @@ public:
 
     Type type() {
         return Func;
+    }
+
+    MalString* stringedType() {
+        return FN;
     }
 
     Function callable() {
@@ -465,14 +529,21 @@ public:
         envAtTimeOf = e;
         actualFn = fn;
         isVariadic = variadic;
+        isMacro = false;
     }
 
     Type type() {
         return TCOptFunc;
     }
 
+    MalString* stringedType() {
+        return TCOFN;
+    }
+
     string inspect(bool readably=true) {
-        return "{TCOptFunction " + actualFn->name() + "}";
+        if (!isMacro)
+            return "{TCOptFunction " + actualFn->name() + "}";
+        return "{Macro_TCOptFunction " + actualFn->name() + "}";
     }
 
     auto getParameters() {
@@ -495,12 +566,17 @@ public:
         return isVariadic;
     }
 
+    void changeMacroStatus(bool is_macro) {
+        isMacro = is_macro;
+    }
+
 private:
     MalType* astBody;
     vector < MalType* > parameters;
     Environ* envAtTimeOf;
     MalFunc* actualFn;
     bool isVariadic;
+    bool isMacro;
 };
 
 class MalAtom : public MalType {
@@ -509,6 +585,10 @@ public:
 
     Type type() {
         return Atom;
+    }
+
+    MalString* stringedType() {
+        return ATOM;
     }
 
     string inspect(bool readably=true) {
@@ -521,6 +601,7 @@ public:
 
     void reset(MalType* n) {
         content = n;
+        tag = "(atom " + n->inspect() + ")";
     }
 
     string name() {

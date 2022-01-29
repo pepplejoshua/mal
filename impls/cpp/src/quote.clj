@@ -4,8 +4,4 @@
 
 (def! call '(+ a b c))
 
-(def! count (atom 0))
-
-(prn (swap! count + 1))
-(prn (swap! count + 1))
-(prn (swap! count + 1))
+(def! n (atom 0))
