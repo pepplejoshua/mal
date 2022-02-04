@@ -529,7 +529,7 @@ public:
         envAtTimeOf = e;
         actualFn = fn;
         isVariadic = variadic;
-        isMacro = false;
+        isMacroFn = false;
     }
 
     Type type() {
@@ -541,7 +541,7 @@ public:
     }
 
     string inspect(bool readably=true) {
-        if (!isMacro)
+        if (!isMacroFn)
             return "{TCOptFunction " + actualFn->name() + "}";
         return "{Macro_TCOptFunction " + actualFn->name() + "}";
     }
@@ -566,8 +566,12 @@ public:
         return isVariadic;
     }
 
+    bool isMacro() {
+        return isMacroFn;
+    }
+
     void changeMacroStatus(bool is_macro) {
-        isMacro = is_macro;
+        isMacroFn = is_macro;
     }
 
 private:
@@ -576,7 +580,7 @@ private:
     Environ* envAtTimeOf;
     MalFunc* actualFn;
     bool isVariadic;
-    bool isMacro;
+    bool isMacroFn;
 };
 
 class MalAtom : public MalType {

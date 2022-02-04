@@ -18,6 +18,7 @@ Env CONSTANTS;
 // used as the global environment
 Environ* TOP_LEVEL = new Environ(NULL);
 // EVAL used by eval
+MalType * eval_ast(MalType * ast, Environ* curEnv);
 MalType * EVAL(MalType *, Environ* curEnv);
 
 namespace Core {
@@ -804,22 +805,16 @@ namespace Core {
 
         auto arg = args[0];
         if (typeChecksOneOf(arg->type(), List, Vector)) {
-            if (arg->type() == List) {
-                auto list = arg->as_list()->items();
-                if (list.size() > 1) {
-                    auto rest = vector < MalType* >(list.begin() + 1, list.end());
-                    return new MalList(rest);
-                }
-                else
+            switch(arg->type()) {
+                case List:
+                default: { // default is Vector
+                    auto seq = arg->as_sequence()->items();
+                    if (seq.size() > 1) {
+                        auto rest = vector < MalType * >(seq.begin() + 1, seq.end());
+                        return new MalList(rest);
+                    }
                     return new MalList;
-            } else {
-                auto vec = arg->as_vector()->items();
-                if (vec.size() > 1) {
-                    auto rest = vector < MalType* >(vec.begin() + 1, vec.end());
-                    return new MalVector(rest);
                 }
-                else
-                    return new MalVector;
             }
         } else if (typeCheck(arg->type(), Pair)) {
             auto pair = arg->as_pair();
@@ -832,6 +827,61 @@ namespace Core {
             typeExcep.errMessage = "'rest' not defined for non-sequential operands.";
             throw typeExcep;
         }
+    }
+
+    MalType* sequenceNth(MalType** args, size_t argc) { 
+        if (argc != 2) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'nth' requires 2 arguments.";
+            throw runExcep;
+        }
+
+        auto a = args[0];
+        auto b = args[1];
+
+        vector < Type > atypes { List, Vector, Pair };
+        if (!typeChecksOneFrom(a->type(), atypes)) {
+            auto e = TypeException();
+            e.errMessage = "'nth' requires a Sequence as its first argument.\n";
+            e.errMessage += "'" + a->inspect() + "' is not a Sequence.";
+            throw e;
+        }
+        
+        if (!typeCheck(b->type(), Int)) {
+            auto e = TypeException();
+            e.errMessage = "'nth' requires an Int as its second argument.\n";
+            e.errMessage += "'" + b->inspect() + "' is not an Int.";
+            throw e;
+        }
+        auto seq = a->as_sequence()->items();
+        auto index = b->as_int()->to_long();
+        long size = seq.size();
+
+        if (index >= size) {
+            auto e = RuntimeException();
+            e.errMessage = to_string(index) + " is out of bounds. ";
+            e.errMessage += a->inspect() + " has " + to_string(seq.size()) + " items.\n";
+            e.errMessage += "indexing starts at 0 and ends at " + to_string(seq.size() - 1) + ".";
+            throw e;
+        }
+
+        // allowing reverse accessing index with negative indexes
+        // supposing a = [1 2 3 4 5] and index = -2
+        // we should return 4
+        // a.size() + index = 5 - 2 = 3 which is 4
+        // make sure a.size() + index >= 0
+        if (index < 0) {
+            long r_index = size + index;
+            if (r_index < 0) {
+                auto e = RuntimeException();
+                e.errMessage = to_string(index) + " is out of bounds, as it maps to " + to_string(r_index) + ". ";
+                e.errMessage += a->inspect() + " has " + to_string(seq.size()) + " items.\n";
+                e.errMessage += "indexing starts at 0 and ends at " + to_string(seq.size() - 1) + ".";
+                throw e;
+            }
+            return seq[r_index];
+        }
+        return seq[index];
     }
 
     MalType* newline(MalType** args, size_t argc) { 
@@ -1283,6 +1333,65 @@ namespace Core {
         return item->stringedType();
     }
 
+    MalType* isMacroCall(MalType** args, size_t argc) {
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'is_macro_call' requires 1 arguments.";
+            throw runExcep;
+        }
+
+        auto item = args[0];
+        
+        if (!typeCheck(item->type(), List)) {
+            return CONSTANTS["false"];
+        }
+        auto ast = item->as_list()->items();    
+        if (ast.size() > 0) {
+            auto first = ast[0];
+            if (!typeCheck(first->type(), Symbol))
+                return CONSTANTS["false"];
+
+            auto found = TOP_LEVEL->find(first); 
+            if (found != NULL &&
+                typeCheck(found->type(), TCOptFunc)) {
+                auto fn = found->as_tcoptfunc();
+                if (fn->isMacro())
+                    return CONSTANTS["true"];
+            }   
+        }
+        return CONSTANTS["false"];
+    }
+
+    MalType* macroExpand(MalType** args, size_t argc) {
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'macroexpand' requires 1 arguments.";
+            throw runExcep;
+        }
+
+        auto ast = args[0];
+        MalType* call_args[1] { ast };
+        auto val = isMacroCall(call_args, 1);
+        while (val == CONSTANTS["true"]) {
+            // so we do have a macro call.
+            auto items = ast->as_list()->items();
+            // we need to grab the macro itself
+            auto macro = TOP_LEVEL->get(items[0]);
+            auto list = new MalList;
+            // create a call list with the macro in the callable
+            // position and then add the other arguments to the list
+            // to be EVAL'd
+            list->append(macro);
+            for (int i = 1; items.size() > i; ++i) {
+                list->append(items[i]);
+            }
+            ast = EVAL(list, TOP_LEVEL);
+            call_args[0] = ast;
+            val = isMacroCall(call_args, 1);
+        }
+        return ast;
+    }
+
     BuiltIns getCoreBuiltins() {
         BuiltIns core;
         core["+"] = add;
@@ -1312,6 +1421,7 @@ namespace Core {
         core[">="] = greaterOrEqual;
         core["first"] = sequenceFirst;
         core["rest"] = sequenceRest;
+        core["nth"] = sequenceNth;
         core["newline"] = newline;
         core["read-string"] = readstring;
         core["parse"] = readstring;

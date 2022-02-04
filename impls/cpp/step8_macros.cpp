@@ -89,9 +89,16 @@ MalType * EVAL(MalType * ast, Environ* curEnv) {
             // empty list
             return ast;
         } else { // a non-empty list
+            // do macro expansion
+            MalType* expand[1] { ast };
+            ast = Core::macroExpand(expand, 1);
+            if (!Core::typeCheck(ast->type(), List))
+                return eval_ast(ast, curEnv);
+
             // take the first item and check if it is a symbol
             auto rawlist = ast->as_list()->items();
             auto firstItem = rawlist[0];
+            
             if(firstItem->type() == Symbol) {
                 // if it is a Symbol, is it def! or let*?
                 auto symstr = firstItem->as_symbol()->str();
@@ -111,6 +118,7 @@ MalType * EVAL(MalType * ast, Environ* curEnv) {
                     auto key = rawlist[1];
                     auto val = rawlist[2];
                     auto e_val = EVAL(val, curEnv);
+                    
                     // since def! form looks like: (def! a b)
                     // where a is either 
                     // 1. a sequential(List, Vector), which would mean b would also have to be
@@ -160,6 +168,9 @@ MalType * EVAL(MalType * ast, Environ* curEnv) {
                         }
                         // check if e_val (result of evaluating binding value, val) is a sequence 
                         // that we can spread across parameters
+                        // TODO: allow multiple variables to be initialized
+                        // with the same value, instead of a 1 to 1 initialization
+                        // with a sequence
                         if (!Core::typeChecksOneOf(e_val->type(), List, Vector)) {
                             auto e = TypeException();
                             e.errMessage = "'" + val->inspect() + "' is not a sequence that can be used in multiple bindings.";
@@ -927,11 +938,20 @@ MalType * EVAL(MalType * ast, Environ* curEnv) {
                     auto dur = duration_cast<microseconds>(end - start).count();
                     string msg = "Elapsed time: " + to_string(dur) + " microseconds. (1 microsecond == 10^-6 of 1 sec).";
                     return new MalString(msg);
+                } else if (symstr == "macroexpand") {
+                    if (rawlist.size() != 2) {
+                        auto runExcep = RuntimeException();
+                        runExcep.errMessage = "'macroexpand' requires 1 argument.";
+                        throw runExcep;
+                    }
+                    // do macro expansion
+                    MalType* expand[1] { rawlist[1] };
+                    return Core::macroExpand(expand, 1);
                 }
                 // if it is neither, it will full through to the bottom
                 // and be a function call
-                
             }
+            
             // evaluate with eval_ast, and get new list
             // then call list[0] as a function with 
             // rest of list as it's argument
@@ -984,7 +1004,7 @@ MalType * EVAL(MalType * ast, Environ* curEnv) {
                     arguments.push_back(item);
                 }
             }
-            
+
             // check if fn is built in or a user fn
             if (Core::typeCheck(callable->type(), Func)) {
                 auto a_args = arguments.data();
@@ -1024,9 +1044,10 @@ MalType * EVAL(MalType * ast, Environ* curEnv) {
                 curEnv = newFnEnv;
                 continue;
             }
+
             auto nonCallable = ast->as_list()->items()[0];
             auto typeExcept = TypeException();
-            typeExcept.errMessage = "'" + nonCallable->inspect() + "' is not a callable.";
+            typeExcept.errMessage = "'" + nonCallable->inspect() + "' is not a Callable.";
             throw typeExcept;
         }
     }
