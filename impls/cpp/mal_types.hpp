@@ -202,6 +202,8 @@ public:
 class MalHashMap : public MalType {
 public:
     MalHashMap() { }
+    
+    MalHashMap(map < string, MalType* > mp): hmap {mp} { }
 
     Type type() {
         return HashMap;
@@ -211,8 +213,8 @@ public:
         return HASHMAP;
     }
 
-    void set(string key, MalType* val) {
-        hmap[key] = val;
+    void set(string key, MalType *actualKey, MalType* val) {
+        hmap[key] = new MalPair(val, actualKey);
     }
 
     MalType* get(MalType* key) {
@@ -233,7 +235,8 @@ public:
         string out = "{";
         for (auto item : hmap) {
             out += item.first + " ";
-            out += item.second->inspect(readably) + " ";
+            auto pair = item.second->as_pair();
+            out += pair->items()[0]->inspect(readably) + " ";
         }
         // overwrite the last append space 
         // only if we have list items

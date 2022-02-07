@@ -1077,18 +1077,19 @@ namespace Core {
 
         auto item = args[0];
         auto key = args[1];
-        vector < Type > stypes { Pair, List, Vector, HashMap };
+        vector < Type > stypes { Pair, List, Vector };
         // we expect a sequence to use find one
         if (!typeChecksOneFrom(item->type(), stypes)) {
             auto typeExcep = TypeException();
-            typeExcep.errMessage = "'find' requires a Sequence|HashMap as it's first argument.";
+            typeExcep.errMessage = "'find' requires a Sequence as it's first argument.";
             throw typeExcep;
         }
 
         switch (item->type()) {
             case Pair:
             case List:
-            case Vector: {
+            case Vector: 
+            default: {
                 auto seq = item->as_sequence()->items();
                 int index = -1;
                 bool found = false;
@@ -1119,30 +1120,25 @@ namespace Core {
                 }
                 return CONSTANTS["nil"];
             }
-            default: { // default is HashMap
-                auto hmap = item->as_hashmap();
-                auto match = hmap->get(key);
-                if (match == NULL) {
-                    return CONSTANTS["nil"];
-                }
-                return match;
-            }
         }
     }
 
     MalType* assoc(MalType** args, size_t argc) {
         // takes a hashmap, a key (could be existing or not) and a value
         // and inserts value at key in provide hashmap
-        if (argc != 3) {
+        if (argc < 3) {
             auto runExcep = RuntimeException();
-            runExcep.errMessage = "'assoc' requires 3 arguments.";
+            runExcep.errMessage = "'assoc' requires at least 3 arguments.";
+            throw runExcep;
+        }
+        // make sure argc - 1 is an even number
+        if ((argc - 1) % 2 != 0) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'assoc' requires an even number of arguments to pair keys and values.";
             throw runExcep;
         }
 
         auto store = args[0];
-        auto k = args[1];
-        auto v = args[2];
-
         if (!typeCheck(store->type(), HashMap)) {
             auto typeExcep = TypeException();
             typeExcep.errMessage = "'assoc' requires a HashMap as it's first argument.";
@@ -1150,8 +1146,14 @@ namespace Core {
         }
 
         auto hmap = store->as_hashmap();
-        hmap->set(k->inspect(), v);
-        return hmap;
+        auto res = new MalHashMap(*hmap);
+
+        for (int i = 1; argc > i; i = i + 2) {
+            auto k = args[i];
+            auto v = args[i+1];
+            res->set(k->inspect(), k, v);
+        }
+        return res;
     }
 
     MalType* concat(MalType** args, size_t argc) {
@@ -1174,7 +1176,7 @@ namespace Core {
     MalType* quasiquote(MalType** args, size_t argc) {
         if (argc != 1) {
             auto runExcep = RuntimeException();
-            runExcep.errMessage = "'quasiquote' requires 1 arguments.";
+            runExcep.errMessage = "'quasiquote' requires 1 argument.";
             throw runExcep;
         }
 
@@ -1295,7 +1297,7 @@ namespace Core {
     MalType* vec(MalType** args, size_t argc) {
         if (argc != 1) {
             auto runExcep = RuntimeException();
-            runExcep.errMessage = "'vec' requires 1 arguments.";
+            runExcep.errMessage = "'vec' requires 1 argument.";
             throw runExcep;
         }
 
@@ -1325,7 +1327,7 @@ namespace Core {
     MalType* type(MalType** args, size_t argc) {
         if (argc != 1) {
             auto runExcep = RuntimeException();
-            runExcep.errMessage = "'type?' requires 1 arguments.";
+            runExcep.errMessage = "'type?' requires 1 argument.";
             throw runExcep;
         }
 
@@ -1336,7 +1338,7 @@ namespace Core {
     MalType* isMacroCall(MalType** args, size_t argc) {
         if (argc != 1) {
             auto runExcep = RuntimeException();
-            runExcep.errMessage = "'is_macro_call' requires 1 arguments.";
+            runExcep.errMessage = "'is_macro_call' requires 1 argument.";
             throw runExcep;
         }
 
@@ -1365,7 +1367,7 @@ namespace Core {
     MalType* macroExpand(MalType** args, size_t argc) {
         if (argc != 1) {
             auto runExcep = RuntimeException();
-            runExcep.errMessage = "'macroexpand' requires 1 arguments.";
+            runExcep.errMessage = "'macroexpand' requires 1 argument.";
             throw runExcep;
         }
 
@@ -1390,6 +1392,377 @@ namespace Core {
             val = isMacroCall(call_args, 1);
         }
         return ast;
+    }
+
+    
+    MalType* throwMalException(MalType** args, size_t argc) {
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'throw' requires 1 argument.";
+            throw runExcep;
+        }
+
+        auto throwable = args[0];
+        throw throwable;        
+    }
+
+    MalType* mapper(MalType** args, size_t argc) {
+        if (argc != 2) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'map' requires 2 arguments.";
+            throw runExcep;
+        }
+
+        auto cal = args[0];
+        auto lst = args[1];
+
+        if (!typeChecksOneOf(cal->type(), Func, TCOptFunc)) {
+            auto t = TypeException();
+            t.errMessage = "'" + cal->inspect() + "' is not a Callable. map takes a Callable and a Sequence.";
+            throw t;
+        }
+
+        vector < Type > stypes { List, Vector, Pair };
+        if (!typeChecksOneFrom(lst->type(), stypes)) {
+            auto t = TypeException();
+            t.errMessage = "'" + lst->inspect() + "' is not a Sequence (List, Vector, Pair).\nmap takes a Callable and a Sequence.";
+            throw t;
+        }
+
+        auto seq = lst->as_sequence()->items();
+        auto res = new MalList;
+        switch (cal->type()) {
+            case Func: {
+                auto fn = cal->as_func()->callable();
+                // we need to loop through seq,
+                // call fn on it and then append it to res
+                for (auto i : seq) {
+                    MalType* arg[1] { i };
+                    res->append(fn(arg, 1));
+                }
+                return res;
+            }
+            default: { // User Defined Fn
+                auto tco = cal->as_tcoptfunc();
+
+                for (auto i : seq) {
+                    auto callList = new MalList;
+                    callList->append(tco);
+                    callList->append(i);
+                    res->append(EVAL(callList, TOP_LEVEL));
+                }
+            }
+        }
+        return res;
+    }
+
+    MalType* applicator(MalType** args, size_t argc) {
+        if (argc < 2) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'apply' requires at least 2 arguments.";
+            throw runExcep;
+        }
+
+        // make sure the last argument is a list
+        auto fn = args[0];
+        if (!typeChecksOneOf(fn->type(), Func, TCOptFunc)) {
+            auto t = TypeException();
+            t.errMessage = "'" + fn->inspect() + "' is not a Callable. map takes a Callable as its first argument.";
+            throw t;
+        }
+        
+        auto last = args[argc - 1];
+        vector < Type > stypes { List, Vector, Pair };
+        if (!typeChecksOneFrom(last->type(), stypes)) {
+            auto t = TypeException();
+            t.errMessage = "'" + last->inspect() + "' is not a Sequence (List, Vector, Pair).\napply takes a Sequence as its last argument.";
+            throw t;
+        }
+
+        auto callList = new MalList;
+        callList->append(fn);
+        for (int i = 1; (argc - 1) > i; ++i) {
+            callList->append(args[i]);
+        }
+        
+        auto seq = last->as_sequence()->items();
+        for (auto i : seq) {
+            callList->append(i);
+        }
+
+        return EVAL(callList, TOP_LEVEL);
+    }
+
+    MalType* isNil(MalType** args, size_t argc) {
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'nil?' requires 1 argument.";
+            throw runExcep;
+        }
+
+        auto item = args[0];
+        return item->type() == Nil ? CONSTANTS["true"] : CONSTANTS["false"];
+    }
+
+    MalType* isTrue(MalType** args, size_t argc) {
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'true?' requires 1 argument.";
+            throw runExcep;
+        }
+
+        auto item = args[0];
+
+        if (item->type() == Boolean) {
+            auto actual = item->as_boolean();
+            return actual == CONSTANTS["true"] ? CONSTANTS["true"] : CONSTANTS["false"];
+        }
+
+        return CONSTANTS["false"];
+    }
+
+    MalType* isFalse(MalType** args, size_t argc) {
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'false?' requires 1 argument.";
+            throw runExcep;
+        }
+
+        auto item = args[0];
+
+        if (item->type() == Boolean) {
+            auto actual = item->as_boolean();
+            return actual == CONSTANTS["false"] ? CONSTANTS["true"] : CONSTANTS["false"];
+        }
+
+        return CONSTANTS["false"];
+    }
+
+    MalType* isSymbol(MalType** args, size_t argc) {
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'symbol?' requires 1 argument.";
+            throw runExcep;
+        }
+
+        auto item = args[0];
+        return item->type() == Symbol ? CONSTANTS["true"] : CONSTANTS["false"];
+    }
+
+    MalType* makeSymbol(MalType** args, size_t argc) {
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'symbol' requires 1 argument.";
+            throw runExcep;
+        }
+
+        auto item = args[0];
+        if (!typeCheck(item->type(), String)) {
+            auto t = TypeException();
+            t.errMessage = "'" + item->inspect() + "' is not a String. You need a String to make a Symbol.";
+            throw t;
+        }
+
+        return new MalSymbol(item->inspect(false));
+    }
+
+    MalType* makeKeyword(MalType** args, size_t argc) {
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'keyword' requires 1 argument.";
+            throw runExcep;
+        }
+
+        auto item = args[0];
+        if (typeCheck(item->type(), Keyword))
+            return item;
+        
+        if (!typeCheck(item->type(), String)) {
+            auto t = TypeException();
+            t.errMessage = "'" + item->inspect() + "' is not a String.";
+            throw t;
+        }
+
+        return new MalKeyword(item->inspect(false));
+    }
+
+    MalType* isKeyword(MalType** args, size_t argc) {
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'keyword?' requires 1 argument.";
+            throw runExcep;
+        }
+
+        auto item = args[0];
+        return item->type() == Keyword ? CONSTANTS["true"] : CONSTANTS["false"];
+    }
+
+    MalType* makeVector(MalType** args, size_t argc) {
+        if (argc < 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'vector' requires at least 1 argument.";
+            throw runExcep;
+        }
+
+        auto res = new MalVector;
+        for (int i = 0; argc > i; ++i) {
+            res->append(args[i]);
+        }
+
+        return res;
+    }
+
+    MalType* isHashMap(MalType** args, size_t argc) {
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'nil?' requires 1 argument.";
+            throw runExcep;
+        }
+
+        auto item = args[0];
+        return item->type() == HashMap ? CONSTANTS["true"] : CONSTANTS["false"];
+    }
+
+    MalType* hashMapGet(MalType** args, size_t argc) {
+        if (argc != 2) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'get' requires 2 arguments.";
+            throw runExcep;
+        }
+        
+        auto item = args[0];
+        if (!typeCheck(item->type(), HashMap)) {
+            auto t = TypeException();
+            t.errMessage = "'" + item->inspect() + "' is not a HashMap.";
+            throw t;
+        }
+        auto key = args[1];
+        auto hmap = item->as_hashmap();
+        auto match = hmap->get(key);
+        if (match == NULL) {
+            return CONSTANTS["nil"];
+        }
+        return match->as_pair()->items()[0];
+    }
+
+    MalType* hashMapContains(MalType** args, size_t argc) {
+        if (argc != 2) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'get' requires 2 arguments.";
+            throw runExcep;
+        }
+        
+        auto item = args[0];
+        if (!typeCheck(item->type(), HashMap)) {
+            auto t = TypeException();
+            t.errMessage = "'" + item->inspect() + "' is not a HashMap.";
+            throw t;
+        }
+        auto key = args[1];
+        auto hmap = item->as_hashmap();
+        auto match = hmap->get(key);
+        if (match == NULL) {
+            return CONSTANTS["false"];
+        }
+        return CONSTANTS["true"];
+    }
+
+    MalType* makeHashMap(MalType** args, size_t argc) {
+        if (argc < 2) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'hash-map' requires at least 2 arguments.";
+            throw runExcep;
+        }
+
+        if (argc % 2 != 0) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'hash-map' requires an even number of arguments to pair keys and values.";
+            throw runExcep;
+        }
+
+        auto res = new MalHashMap;
+        for (int i = 0; argc > i; i = i + 2) {
+            res->set(args[i]->inspect(), args[i], args[i+1]);
+        }
+
+        return res;
+    }
+
+    MalType* dissoc(MalType** args, size_t argc) {
+        if (argc < 2) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'dissoc' requires at least 2 arguments.";
+            throw runExcep;
+        }
+
+        auto item = args[0];
+        if (!typeCheck(item->type(), HashMap)) {
+            auto t = TypeException();
+            t.errMessage = "'" + item->inspect() + "' is not a HashMap.";
+            throw t;
+        }
+
+        auto hmap = item->as_hashmap();
+        auto items = hmap->items();
+        for (int i = 1; argc > i; ++i) {
+            auto item = args[i];
+            items.erase(item->inspect());
+        }
+
+        auto res = new MalHashMap(items);
+        return res;
+    }
+
+    MalType* hashMapKeysList(MalType** args, size_t argc) {
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'keys' requires 1 argument.";
+            throw runExcep;
+        }
+
+        auto item = args[0];
+        if (!typeCheck(item->type(), HashMap)) {
+            auto t = TypeException();
+            t.errMessage = "'" + item->inspect() + "' is not a HashMap.";
+            throw t;
+        }
+
+        auto hmap = item->as_hashmap();
+        auto items = hmap->items();
+
+        auto res = new MalList;
+        for (auto p : items) {
+            auto pair = p.second->as_pair();
+            auto key = pair->items()[1];
+            res->append(key);
+        }
+        return res;
+    }
+
+    MalType* hashMapValuesList(MalType** args, size_t argc) {
+        if (argc != 1) {
+            auto runExcep = RuntimeException();
+            runExcep.errMessage = "'values' requires 1 argument.";
+            throw runExcep;
+        }
+
+        auto item = args[0];
+        if (!typeCheck(item->type(), HashMap)) {
+            auto t = TypeException();
+            t.errMessage = "'" + item->inspect() + "' is not a HashMap.";
+            throw t;
+        }
+
+        auto hmap = item->as_hashmap();
+        auto items = hmap->items();
+
+        auto res = new MalList;
+        for (auto p : items) {
+            auto pair = p.second->as_pair();
+            auto val = pair->items()[0];
+            res->append(val);
+        }
+        return res;
     }
 
     BuiltIns getCoreBuiltins() {
@@ -1438,6 +1811,25 @@ namespace Core {
         core["concat"] = concat;
         core["vec"] = vec;
         core["type"] = type;
+        core["throw"] = throwMalException;
+        core["apply"] = applicator;
+        core["map"] = mapper;
+        core["sequential?"] = isSequence;
+        core["nil?"] = isNil;
+        core["true?"] = isTrue;
+        core["false?"] = isFalse;
+        core["symbol?"] = isSymbol;
+        core["symbol"] = makeSymbol;
+        core["keyword"] = makeKeyword;
+        core["keyword?"] = isKeyword;
+        core["vector"] = makeVector;
+        core["map?"] = isHashMap;
+        core["get"] = hashMapGet;
+        core["contains"] = hashMapContains;
+        core["hash-map"] = makeHashMap;
+        core["dissoc"] = dissoc;
+        core["keys"] = hashMapKeysList;
+        core["values"] = hashMapValuesList;
         return core;
     }
 }

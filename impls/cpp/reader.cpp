@@ -139,7 +139,7 @@ optional < MalType * > read_hashmap(Reader &reader) {
             throw r_except;
         }
         auto val = read_form(reader);
-        hmap->set(key.value()->inspect(), *val);
+        hmap->set(key.value()->inspect(), *key, *val);
     }
     auto r_except = ReaderException();
     r_except.errMessage = "unbalanced";
